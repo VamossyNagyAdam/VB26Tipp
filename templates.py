@@ -55,7 +55,8 @@ tr td:first-child{font-weight:800;color:var(--accent)}
 .flash{padding:12px 16px;border-radius:10px;margin-bottom:16px;font-weight:600}
 .flash.ok{background:rgba(0,229,160,.12);color:var(--accent);border:1px solid rgba(0,229,160,.3)}
 .flash.err{background:rgba(255,84,112,.12);color:var(--danger);border:1px solid rgba(255,84,112,.3)}
-.pill{font-size:.78rem;color:var(--muted)}
+select.sel{padding:11px 13px;background:var(--bg);border:1px solid var(--line);
+  border-radius:10px;color:var(--ink);font-size:1rem;width:100%}
 .result{color:var(--accent2);font-weight:800}
 
 /* tippelt meccs: szürkébb háttér */

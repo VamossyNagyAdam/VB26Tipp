@@ -128,14 +128,21 @@ def fooldal(request: Request, uzenet: str = ""):
         <div>Gólkirály: <b>{b['golkiraly'] or '–'}</b></div></div>
         <div class="locked">🔒 A torna elindult, a bónusz-tippek véglegesek.</div></div>"""
     else:
+        csapat_opts = '<option value="">– válassz –</option>' + "".join(
+            f'<option value="{c}"{" selected" if c==b["vilagbajnok"] else ""}>{c}</option>'
+            for c in queries.csapatok(conn))
+        jatekos_opts = '<option value="">– válassz –</option>' + "".join(
+            f'<option value="{j}"{" selected" if j==b["golkiraly"] else ""}>{j}</option>'
+            for j in queries.jatekosok(conn))
         bonusz_html = f"""<div class="bonusbox"><h2>Bónusz-tippek</h2>
         <div class="lead">Világbajnok: 10 pont · Gólkirály: 6 pont. A torna kezdetéig módosítható.</div>
         <form method="post" action="/bonusz" class="ro" style="align-items:flex-end">
         <div style="flex:1;min-width:180px"><label>Világbajnok (nemzet)</label>
-        <input type="text" name="vilagbajnok" value="{b['vilagbajnok']}" placeholder="pl. Argentína"></div>
-        <div style="flex:1;min-width:180px"><label>Gólkirály (teljes név)</label>
-        <input type="text" name="golkiraly" value="{b['golkiraly']}" placeholder="pl. Kylian Mbappé"></div>
-        <button class="btn" type="submit">Mentés</button></form></div>"""
+        <select name="vilagbajnok" class="sel">{csapat_opts}</select></div>
+        <div style="flex:1;min-width:180px"><label>Gólkirály</label>
+        <select name="golkiraly" class="sel">{jatekos_opts}</select></div>
+        <button class="btn" type="submit">Mentés</button></form>
+        <div class="lead" style="margin-top:12px;margin-bottom:0">Nem találod a játékost a listában? Szólj a szervezőnek, és felveszi.</div></div>"""
 
     # --- Meccsek napokra bontva ---
     meccsek = queries.meccsek_listaja(conn)
@@ -269,10 +276,24 @@ def admin_oldal(request: Request, kulcs: str = "", uzenet: str = "", hiba: str =
     if hiba:
         flash += f'<div class="flash err">{hiba}</div>'
 
-    # Felhasználók listája
-    users = conn.execute("SELECT id, nev FROM users ORDER BY nev").fetchall()
-    user_sorok = "".join(f"<tr><td>{u[0]}</td><td>{u[1]}</td></tr>" for u in users) \
-        or '<tr><td colspan="2" class="pill">Még nincs felhasználó.</td></tr>'
+    # Felhasználók listája (státusz + deaktiválás/aktiválás)
+    users = conn.execute("SELECT id, nev, aktiv FROM users ORDER BY nev").fetchall()
+    user_sorok = ""
+    for u in users:
+        uid_, unev, uaktiv = u
+        if uaktiv:
+            statusz = '<span style="color:var(--accent)">aktív</span>'
+            gomb = f"""<form method="post" action="/admin/user-deaktival" style="display:inline">
+            <input type="hidden" name="kulcs" value="{kulcs}"><input type="hidden" name="user_id" value="{uid_}">
+            <button class="btn small ghost" type="submit">Deaktivál</button></form>"""
+        else:
+            statusz = '<span style="color:var(--muted)">inaktív</span>'
+            gomb = f"""<form method="post" action="/admin/user-aktival" style="display:inline">
+            <input type="hidden" name="kulcs" value="{kulcs}"><input type="hidden" name="user_id" value="{uid_}">
+            <button class="btn small" type="submit">Aktivál</button></form>"""
+        user_sorok += f"<tr><td>{uid_}</td><td>{unev}</td><td>{statusz}</td><td>{gomb}</td></tr>"
+    if not users:
+        user_sorok = '<tr><td colspan="4" class="pill">Még nincs felhasználó.</td></tr>'
 
     # Meccslista ID-kkal, eredménybeviteli űrlappal
     most = queries.now_utc_iso()
@@ -289,6 +310,12 @@ def admin_oldal(request: Request, kulcs: str = "", uzenet: str = "", hiba: str =
         eh_val = eh if van_eredmeny else ""
         ev_val = ev if van_eredmeny else ""
         jeloles = ' · <span class="result">kész</span>' if van_eredmeny else ""
+        torol_gomb = ""
+        if van_eredmeny:
+            torol_gomb = f"""<form method="post" action="/admin/eredmeny-torol" style="display:inline">
+            <input type="hidden" name="kulcs" value="{kulcs}">
+            <input type="hidden" name="match_id" value="{mid}">
+            <button class="btn small ghost" type="submit">Töröl</button></form>"""
         meccs_sorok += f"""<div class="match"><div class="grp">{grp}</div>
         <div class="teams">#{mid} · {hazai} – {vendeg}<div class="ko">{ko_ido(ko)}{jeloles}</div></div>
         <form method="post" action="/admin/eredmeny" style="display:flex;gap:8px;align-items:center">
@@ -297,7 +324,7 @@ def admin_oldal(request: Request, kulcs: str = "", uzenet: str = "", hiba: str =
         <input class="score-in" type="number" min="0" name="eh" value="{eh_val}" required>
         <span>:</span>
         <input class="score-in" type="number" min="0" name="ev" value="{ev_val}" required>
-        <button class="btn small" type="submit">Rögzít</button></form></div>"""
+        <button class="btn small" type="submit">Rögzít</button></form>{torol_gomb}</div>"""
 
     # Torna-végeredmény jelenlegi értéke
     tr = conn.execute(
@@ -315,8 +342,16 @@ def admin_oldal(request: Request, kulcs: str = "", uzenet: str = "", hiba: str =
     <div style="flex:1;min-width:140px"><label>Név</label><input type="text" name="nev" required></div>
     <div style="flex:1;min-width:140px"><label>Jelszó</label><input type="text" name="jelszo" required></div>
     <button class="btn" type="submit">Létrehoz</button></form>
-    <table style="margin-top:16px"><thead><tr><th>ID</th><th>Név</th></tr></thead>
+    <table style="margin-top:16px"><thead><tr><th>ID</th><th>Név</th><th>Státusz</th><th></th></tr></thead>
     <tbody>{user_sorok}</tbody></table></div>
+
+    <div class="card"><h2 style="font-size:1.05rem;margin-bottom:12px">Gólkirály-jelölt hozzáadása</h2>
+    <p class="pill" style="margin-bottom:12px">A bónusz-tippnél választható listát bővíti.</p>
+    <form method="post" action="/admin/jatekos" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <input type="hidden" name="kulcs" value="{kulcs}">
+    <div style="flex:1;min-width:160px"><label>Játékos neve</label><input type="text" name="nev" required></div>
+    <div style="flex:1;min-width:140px"><label>Csapat (opcionális)</label><input type="text" name="csapat"></div>
+    <button class="btn" type="submit">Hozzáad</button></form></div>
 
     <div class="card"><h2 style="font-size:1.05rem;margin-bottom:12px">Torna-végeredmény (bónusz-pontok)</h2>
     <p class="pill" style="margin-bottom:12px">A gólkirályokat vesszővel válaszd el (holtverseny esetén több név).</p>
@@ -366,3 +401,42 @@ def admin_torna(kulcs: str = Form(...), vilagbajnok: str = Form(...), golkiralyo
     conn = db.kapcsolat()
     ok, uz = queries.torna_eredmeny_rogzit(conn, vilagbajnok, golkiralyok)
     return RedirectResponse(f"/admin?kulcs={kulcs}&uzenet={uz.replace(' ','+')}", status_code=303)
+
+
+@app.post("/admin/eredmeny-torol")
+def admin_eredmeny_torol(kulcs: str = Form(...), match_id: int = Form(...)):
+    if kulcs != ADMIN_JELSZO:
+        return RedirectResponse("/admin", status_code=303)
+    conn = db.kapcsolat()
+    ok, uz = queries.eredmeny_torol(conn, match_id)
+    return RedirectResponse(f"/admin?kulcs={kulcs}&uzenet={uz.replace(' ','+')}", status_code=303)
+
+
+@app.post("/admin/user-deaktival")
+def admin_user_deaktival(kulcs: str = Form(...), user_id: int = Form(...)):
+    if kulcs != ADMIN_JELSZO:
+        return RedirectResponse("/admin", status_code=303)
+    conn = db.kapcsolat()
+    ok, uz = queries.user_deaktival(conn, user_id)
+    return RedirectResponse(f"/admin?kulcs={kulcs}&uzenet={uz.replace(' ','+')}", status_code=303)
+
+
+@app.post("/admin/user-aktival")
+def admin_user_aktival(kulcs: str = Form(...), user_id: int = Form(...)):
+    if kulcs != ADMIN_JELSZO:
+        return RedirectResponse("/admin", status_code=303)
+    conn = db.kapcsolat()
+    ok, uz = queries.user_aktival(conn, user_id)
+    return RedirectResponse(f"/admin?kulcs={kulcs}&uzenet={uz.replace(' ','+')}", status_code=303)
+
+
+@app.post("/admin/jatekos")
+def admin_jatekos(kulcs: str = Form(...), nev: str = Form(...), csapat: str = Form("")):
+    if kulcs != ADMIN_JELSZO:
+        return RedirectResponse("/admin", status_code=303)
+    conn = db.kapcsolat()
+    ok, uz = queries.jatekos_hozzaad(conn, nev, csapat)
+    kp = f"kulcs={kulcs}"
+    if ok:
+        return RedirectResponse(f"/admin?{kp}&uzenet={uz.replace(' ','+')}", status_code=303)
+    return RedirectResponse(f"/admin?{kp}&hiba={uz.replace(' ','+')}", status_code=303)

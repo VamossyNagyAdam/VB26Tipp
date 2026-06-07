@@ -33,7 +33,19 @@ CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nev TEXT UNIQUE NOT NULL,
     jelszo_hash TEXT NOT NULL,
+    aktiv INTEGER NOT NULL DEFAULT 1,
     letrehozva TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS teams (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nev TEXT UNIQUE NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS players (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nev TEXT UNIQUE NOT NULL,
+    csapat TEXT
 );
 
 CREATE TABLE IF NOT EXISTS matches (
@@ -89,14 +101,23 @@ CREATE TABLE IF NOT EXISTS tournament_results (
 
 
 def init_db():
-    """Létrehozza a táblákat, ha még nem léteznek."""
+    """Létrehozza a táblákat, ha még nem léteznek, és lefuttatja a migrációkat."""
     conn = kapcsolat()
     # több utasítás egyben -> soronként hajtjuk végre
     for utasitas in SEMA.strip().split(";"):
         if utasitas.strip():
             conn.execute(utasitas)
     conn.commit()
+    _migracio(conn)
     return conn
+
+
+def _migracio(conn):
+    """Meglévő adatbázis óvatos bővítése (új oszlopok, ha hiányoznak)."""
+    oszlopok = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+    if "aktiv" not in oszlopok:
+        conn.execute("ALTER TABLE users ADD COLUMN aktiv INTEGER NOT NULL DEFAULT 1")
+        conn.commit()
 
 
 if __name__ == "__main__":

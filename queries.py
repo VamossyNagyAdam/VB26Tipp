@@ -29,11 +29,13 @@ def user_letrehoz(conn, nev: str, jelszo: str):
 
 
 def user_belep(conn, nev: str, jelszo: str):
-    """Belépés ellenőrzése. Visszaadja a user_id-t ha helyes, különben None."""
+    """Belépés ellenőrzése. Visszaadja a user_id-t ha helyes ÉS aktív, különben None."""
     row = conn.execute(
-        "SELECT id, jelszo_hash FROM users WHERE nev=?", (nev,)
+        "SELECT id, jelszo_hash, aktiv FROM users WHERE nev=?", (nev,)
     ).fetchone()
     if not row:
+        return None
+    if row[2] == 0:  # deaktivált
         return None
     if auth.ellenoriz_jelszo(jelszo, row[1]):
         return row[0]
@@ -187,7 +189,7 @@ def ranglista(conn):
     """
     Minden user összpontszáma: meccspontok + bónuszpontok, csökkenő sorrendben.
     """
-    users = conn.execute("SELECT id, nev FROM users").fetchall()
+    users = conn.execute("SELECT id, nev FROM users WHERE aktiv=1").fetchall()
 
     # torna-végeredmény a bónuszhoz (ha már van)
     tr = conn.execute(
@@ -220,3 +222,52 @@ def ranglista(conn):
 
     eredmeny.sort(key=lambda x: x["ossz"], reverse=True)
     return eredmeny
+
+
+# ---------- Csapatok / játékosok (dropdownokhoz) ----------
+
+def csapatok(conn):
+    return [r[0] for r in conn.execute("SELECT nev FROM teams ORDER BY nev").fetchall()]
+
+
+def jatekosok(conn):
+    return [r[0] for r in conn.execute("SELECT nev FROM players ORDER BY nev").fetchall()]
+
+
+def jatekos_hozzaad(conn, nev: str, csapat: str = ""):
+    nev = nev.strip()
+    if not nev:
+        return False, "Üres név."
+    l = conn.execute("SELECT id FROM players WHERE nev=?", (nev,)).fetchone()
+    if l:
+        return False, "Ez a játékos már szerepel."
+    conn.execute("INSERT INTO players (nev, csapat) VALUES (?, ?)", (nev, csapat.strip()))
+    conn.commit()
+    return True, f"Játékos hozzáadva: {nev}"
+
+
+# ---------- Felhasználó deaktiválás / aktiválás ----------
+
+def user_deaktival(conn, user_id: int):
+    conn.execute("UPDATE users SET aktiv=0 WHERE id=?", (user_id,))
+    conn.commit()
+    return True, "Felhasználó deaktiválva."
+
+
+def user_aktival(conn, user_id: int):
+    conn.execute("UPDATE users SET aktiv=1 WHERE id=?", (user_id,))
+    conn.commit()
+    return True, "Felhasználó újraaktiválva."
+
+
+# ---------- Eredmény törlése ----------
+
+def eredmeny_torol(conn, match_id: int):
+    """Törli a meccs eredményét és az arra adott pontokat (tippeket meghagyja)."""
+    conn.execute(
+        "UPDATE matches SET eredmeny_hazai=NULL, eredmeny_vendeg=NULL WHERE id=?",
+        (match_id,),
+    )
+    conn.execute("DELETE FROM points WHERE match_id=?", (match_id,))
+    conn.commit()
+    return True, "Eredmény törölve, a pontok visszavonva."
