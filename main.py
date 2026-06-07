@@ -161,24 +161,34 @@ def fooldal(request: Request, uzenet: str = ""):
         th, tv = tippek.get(mid, ("", ""))
         van_tipp = mid in tippek
         tipped_cls = " tipped" if van_tipp else ""
+        van_eredmeny = eh is not None
+
+        # Állapot-szöveg meghatározása
+        if not zart:
+            allapot = "Tipp leadva" if van_tipp else "Még nincs tipp"
+        elif van_eredmeny:
+            allapot = "Meccs kiértékelve"
+        else:
+            allapot = "Mérkőzés folyamatban"
 
         if zart:
             # eredmény + pont-színezés
             eredmeny = ""
-            if eh is not None:
+            if van_eredmeny:
                 eredmeny = f'<span class="result">{eh}–{ev}</span>'
             pont_badge = ""
-            if mid in pontok:
-                p = pontok[mid]
+            if van_eredmeny:
+                # kiértékelt meccs: a saját pont (tipp nélkül 0)
+                p = pontok.get(mid, 0)
                 cls = "pt3" if p == 3 else ("pt12" if p in (1, 2) else "pt0")
                 pont_badge = f'<span class="ptbadge {cls}">{p} pont</span>'
             tipp_str = f'{th}:{tv}' if van_tipp else '–'
             sorok += f"""<div class="match closed{tipped_cls}"><div class="grp">{grp}</div>
             <div class="teams">{hazai} – {vendeg} {eredmeny}{pont_badge}
-            <div class="ko">{ko_ido(ko)} · lezárt · tipped: {tipp_str}</div></div></div>"""
+            <div class="ko">{ko_ido(ko)} · {allapot} · tipped: {tipp_str}</div></div></div>"""
         else:
             sorok += f"""<div class="match{tipped_cls}"><div class="grp">{grp}</div>
-            <div class="teams">{hazai} – {vendeg}<div class="ko">{ko_ido(ko)}</div></div>
+            <div class="teams">{hazai} – {vendeg}<div class="ko">{ko_ido(ko)} · {allapot}</div></div>
             <form method="post" action="/tipp" style="display:flex;gap:8px;align-items:center">
             <input type="hidden" name="match_id" value="{mid}">
             <input class="score-in" type="number" min="0" name="th" value="{th}" required>
@@ -235,6 +245,11 @@ def ranglista_oldal(request: Request):
     body = f"""<h1>Ranglista</h1><p class="sub">Meccspontok + bónuszpontok.</p>
     <div class="card"><table><thead><tr><th>#</th><th>Név</th>
     <th>Meccs</th><th>Bónusz</th><th>Összesen</th></tr></thead><tbody>{sorok}</tbody></table></div>
+    <div class="card"><h2 style="font-size:1.05rem;margin-bottom:12px">Hogyan működik a játék?</h2>
+    <p style="margin-bottom:10px">Minden mérkőzésre a <b>kezdőrúgás előtt</b> tippelsz: beírod, hány gólt lősz a két csapatnak. A meccs kezdete után a tipped már nem módosítható, úgyhogy érdemes időben leadni. Aki nem tippel egy meccsre, arra <b>0 pontot</b> kap.</p>
+    <p style="margin-bottom:10px">A pontokat a lenti táblázat szerint gyűjtöd: minél pontosabb a tipped, annál többet ér. A tippeket a <b>rendes játékidő</b> (90 perc + hosszabbítás nélkül) eredményéhez mérjük – tehát ha egy meccs hosszabbításban vagy tizenegyesekkel dől el, az nem számít, csak a 90 perc utáni állás.</p>
+    <p style="margin-bottom:10px">A torna kezdete előtt két <b>bónusz-tippet</b> is leadhatsz a főoldal tetején: ki lesz a <b>világbajnok</b> és ki lesz a <b>gólkirály</b>. Ezeket a torna első meccsének kezdetéig módosíthatod, utána véglegesek. A bónuszpontok a torna végén kerülnek jóváírásra.</p>
+    <p style="margin-bottom:0">A ranglista a meccspontok és a bónuszpontok összegét mutatja. A legtöbb pontot gyűjtő nyeri a ligát. Sok sikert!</p></div>
     <div class="card"><h2 style="font-size:1.05rem;margin-bottom:12px">Pontozás</h2>
     <table><tbody>
     <tr><td><span class="ptbadge pt3">3</span></td><td>Pontos eredmény (a döntetlené is)</td></tr>
