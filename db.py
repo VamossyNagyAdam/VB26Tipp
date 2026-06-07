@@ -68,6 +68,23 @@ CREATE TABLE IF NOT EXISTS points (
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (match_id) REFERENCES matches(id)
 );
+
+CREATE TABLE IF NOT EXISTS bonus_predictions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    vilagbajnok TEXT,                   -- tippelt győztes csapat neve
+    golkiraly TEXT,                     -- tippelt gólkirály játékos neve
+    beadva_utc TEXT DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id),                    -- egy user / egy bónusz-tipp
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS tournament_results (
+    id INTEGER PRIMARY KEY CHECK (id = 1),  -- mindig egyetlen sor
+    vilagbajnok TEXT,                   -- végső győztes csapat
+    golkiralyok TEXT,                   -- gólkirály(ok), vesszővel elválasztva (holtverseny)
+    veglegesitve_utc TEXT
+);
 """
 
 

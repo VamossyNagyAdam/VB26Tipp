@@ -13,6 +13,10 @@ PONT_GOLKULONBSEG = 2      # helyes győztes + helyes gólkülönbség (csak nem
 PONT_KIMENETEL = 1         # helyes kimenetel (győztes vagy döntetlen), de rossz eredmény
 PONT_ROSSZ = 0
 
+# Bónusz-tippek (egyszer, a torna elején leadva; a torna végén dőlnek el)
+PONT_VILAGBAJNOK = 10      # a végső győztes csapat eltalálása
+PONT_GOLKIRALY = 6         # a gólkirály eltalálása (holtverseny esetén bárki a listából)
+
 
 def _kimenetel(hazai: int, vendeg: int) -> str:
     """Visszaadja a meccs kimenetelét: 'H' (hazai), 'D' (döntetlen), 'V' (vendég)."""
@@ -60,6 +64,36 @@ def pontszam(tipp_hazai: int, tipp_vendeg: int,
     return PONT_KIMENETEL
 
 
+def vilagbajnok_pont(tippelt_csapat: str, tenyleges_bajnok: str) -> int:
+    """
+    Bónusz a végső győztes eltalálásáért.
+    Bináris: vagy eltaláltad, vagy nem (nincs részpont).
+    A csapatneveket kis-nagybetűtől és felesleges szóközöktől függetlenül hasonlítja.
+    """
+    if not tippelt_csapat or not tenyleges_bajnok:
+        return 0
+    if tippelt_csapat.strip().casefold() == tenyleges_bajnok.strip().casefold():
+        return PONT_VILAGBAJNOK
+    return 0
+
+
+def golkiraly_pont(tippelt_jatekos: str, golkiralyok: list[str]) -> int:
+    """
+    Bónusz a gólkirály eltalálásáért.
+
+    A `golkiralyok` egy lista, mert holtverseny esetén többen is lehetnek
+    (azonos gólszám). Ha a tippelt játékos köztük van, jár a teljes pont.
+    Bináris: nincs részpont, és holtversenynél sem csökken az érték.
+    """
+    if not tippelt_jatekos or not golkiralyok:
+        return 0
+    tipp = tippelt_jatekos.strip().casefold()
+    for jatekos in golkiralyok:
+        if jatekos and tipp == jatekos.strip().casefold():
+            return PONT_GOLKIRALY
+    return 0
+
+
 if __name__ == "__main__":
     # Gyors önteszt – futtasd: python scoring.py
     esetek = [
@@ -81,4 +115,36 @@ if __name__ == "__main__":
             minden_ok = False
         print(f"[{statusz}] tipp {th}-{tv} / tény {eh}-{ev} = {kapott} pont "
               f"(várt {vart}) – {leiras}")
+    print("\nMinden teszt rendben." if minden_ok else "\nVANNAK HIBÁK!")
+
+    # --- Bónusz-tippek tesztelése ---
+    print("\n--- Bónusz: világbajnok ---")
+    vb_esetek = [
+        ("Argentína", "Argentína", 10, "pontos találat"),
+        ("argentína", "Argentína ", 10, "kis/nagybetű + szóköz tűrés"),
+        ("Brazília", "Argentína", 0, "nem talált"),
+        ("", "Argentína", 0, "üres tipp"),
+    ]
+    for tipp, teny, vart, leiras in vb_esetek:
+        kapott = vilagbajnok_pont(tipp, teny)
+        statusz = "OK" if kapott == vart else "HIBA"
+        if kapott != vart:
+            minden_ok = False
+        print(f"[{statusz}] tipp '{tipp}' / bajnok '{teny}' = {kapott} (várt {vart}) – {leiras}")
+
+    print("\n--- Bónusz: gólkirály ---")
+    gk_esetek = [
+        ("Mbappé", ["Mbappé"], 6, "egyértelmű gólkirály"),
+        ("Kane", ["Mbappé", "Kane", "Yamal"], 6, "holtverseny, eltalálva"),
+        ("Messi", ["Mbappé", "Kane"], 0, "holtverseny, nem talált"),
+        ("kane", ["Kane"], 6, "kis/nagybetű tűrés"),
+        ("Mbappé", [], 0, "nincs még gólkirály"),
+    ]
+    for tipp, lista, vart, leiras in gk_esetek:
+        kapott = golkiraly_pont(tipp, lista)
+        statusz = "OK" if kapott == vart else "HIBA"
+        if kapott != vart:
+            minden_ok = False
+        print(f"[{statusz}] tipp '{tipp}' / gólkirályok {lista} = {kapott} (várt {vart}) – {leiras}")
+
     print("\nMinden teszt rendben." if minden_ok else "\nVANNAK HIBÁK!")
