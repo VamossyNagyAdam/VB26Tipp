@@ -99,6 +99,14 @@ def sajat_tippek(conn, user_id: int):
     return {r[0]: (r[1], r[2]) for r in rows}
 
 
+def sajat_pontok(conn, user_id: int):
+    """Egy user meccsenkénti pontjai match_id -> pont szótárban (a színezéshez)."""
+    rows = conn.execute(
+        "SELECT match_id, pont FROM points WHERE user_id=?", (user_id,)
+    ).fetchall()
+    return {r[0]: r[1] for r in rows}
+
+
 # ---------- Bónusz-tippek ----------
 
 def bonusz_bead(conn, user_id: int, vilagbajnok: str, golkiraly: str):

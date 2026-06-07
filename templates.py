@@ -57,13 +57,34 @@ tr td:first-child{font-weight:800;color:var(--accent)}
 .flash.err{background:rgba(255,84,112,.12);color:var(--danger);border:1px solid rgba(255,84,112,.3)}
 .pill{font-size:.78rem;color:var(--muted)}
 .result{color:var(--accent2);font-weight:800}
+
+/* tippelt meccs: szürkébb háttér */
+.match.tipped{background:var(--panel2);border-color:#333d5c}
+/* lement meccs pont-színezése */
+.ptbadge{font-weight:800;border-radius:8px;padding:4px 11px;font-size:.85rem;margin-left:8px}
+.pt3{background:rgba(0,229,160,.15);color:var(--accent);border:1px solid rgba(0,229,160,.4)}
+.pt12{background:rgba(255,184,0,.15);color:var(--accent2);border:1px solid rgba(255,184,0,.4)}
+.pt0{background:rgba(255,84,112,.15);color:var(--danger);border:1px solid rgba(255,84,112,.4)}
+/* napi elválasztó */
+.daysep{display:flex;align-items:center;gap:14px;margin:26px 2px 14px}
+.daysep .dline{flex:1;height:1px;background:var(--line)}
+.daysep .dlabel{color:var(--ink);font-weight:700;font-size:.95rem;white-space:nowrap}
+.daysep .dlabel .dow{color:var(--muted);font-weight:600;margin-left:6px}
+/* bónusz-blokk a tippek tetején */
+.bonusbox{background:linear-gradient(135deg,var(--panel2),var(--panel));
+  border:1px solid var(--accent);border-radius:var(--radius);padding:20px 22px;margin-bottom:24px}
+.bonusbox h2{font-size:1.05rem;margin-bottom:4px}
+.bonusbox .lead{color:var(--muted);font-size:.88rem;margin-bottom:14px}
+.bonusbox .ro{display:flex;gap:24px;flex-wrap:wrap}
+.bonusbox .ro div b{color:var(--accent)}
+.bonusbox .locked{font-size:.78rem;color:var(--accent2);font-weight:700;margin-top:6px}
 """
 
 def page(title, body, nev=None):
     nav = ""
     if nev:
-        nav = (f'<a href="/">Tippek</a><a href="/bonusz">Bónusz</a>'
-               f'<a href="/ranglista">Ranglista</a><a href="/kilepes">Kilépés ({nev})</a>')
+        nav = ('<a href="/">Tippek</a><a href="/ranglista">Ranglista</a>'
+               '<a href="/kilepes">Kilépés</a>')
     else:
         nav = '<a href="/belepes">Belépés</a>'
     return f"""<!doctype html><html lang="hu"><head><meta charset="utf-8">

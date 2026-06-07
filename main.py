@@ -32,15 +32,42 @@ def aktualis_user(request: Request, conn):
     return (uid, nev) if nev else None
 
 
-def ko_human(iso_utc: str) -> str:
-    """UTC ISO -> magyar idő (CEST, UTC+2) olvasható formában."""
-    try:
-        dt = datetime.strptime(iso_utc, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
-        from datetime import timedelta
-        helyi = dt.astimezone(timezone(timedelta(hours=2)))
-        return helyi.strftime("%m.%d. %H:%M")
-    except Exception:
-        return iso_utc
+from datetime import timedelta
+
+HU_TZ = timezone(timedelta(hours=2))  # CEST (nyári idő, a torna idején)
+NAPOK = ["Hétfő", "Kedd", "Szerda", "Csütörtök", "Péntek", "Szombat", "Vasárnap"]
+HONAPOK = ["", "Január", "Február", "Március", "Április", "Május", "Június",
+           "Július", "Augusztus", "Szeptember", "Október", "November", "December"]
+
+
+def _hu_dt(iso_utc: str):
+    """UTC ISO -> magyar idejű datetime."""
+    dt = datetime.strptime(iso_utc, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+    return dt.astimezone(HU_TZ)
+
+
+def nap_kulcs(iso_utc: str):
+    """
+    A meccs 'műsornapja' (date objektum). A pontosan 00:00-kor kezdődő meccs
+    az ELŐZŐ naphoz tartozik (24:00-ként jelenik meg).
+    """
+    h = _hu_dt(iso_utc)
+    if h.hour == 0 and h.minute == 0:
+        return (h - timedelta(days=1)).date()
+    return h.date()
+
+
+def nap_cimke(d):
+    """date -> 'Június 11. — Csütörtök'."""
+    return f"{HONAPOK[d.month]} {d.day}. — {NAPOK[d.weekday()]}"
+
+
+def ko_ido(iso_utc: str) -> str:
+    """Csak az időpont, a pontosan éjféli meccs 24:00-ként."""
+    h = _hu_dt(iso_utc)
+    if h.hour == 0 and h.minute == 0:
+        return "24:00"
+    return h.strftime("%H:%M")
 
 
 # ---------- Belépés / kilépés ----------
@@ -85,25 +112,66 @@ def fooldal(request: Request, uzenet: str = ""):
     uid, nev = user
 
     tippek = queries.sajat_tippek(conn, uid)
+    pontok = queries.sajat_pontok(conn, uid)
     most = queries.now_utc_iso()
     flash = f'<div class="flash ok">{uzenet}</div>' if uzenet else ""
 
+    # --- Bónusz-blokk a tetőn ---
+    b = queries.sajat_bonusz(conn, uid)
+    elso = conn.execute(
+        "SELECT kickoff_utc FROM matches ORDER BY kickoff_utc LIMIT 1"
+    ).fetchone()
+    bonusz_zart = elso and most >= elso[0]
+    if bonusz_zart:
+        bonusz_html = f"""<div class="bonusbox"><h2>Bónusz-tippek</h2>
+        <div class="ro"><div>Világbajnok: <b>{b['vilagbajnok'] or '–'}</b></div>
+        <div>Gólkirály: <b>{b['golkiraly'] or '–'}</b></div></div>
+        <div class="locked">🔒 A torna elindult, a bónusz-tippek véglegesek.</div></div>"""
+    else:
+        bonusz_html = f"""<div class="bonusbox"><h2>Bónusz-tippek</h2>
+        <div class="lead">Világbajnok: 10 pont · Gólkirály: 6 pont. A torna kezdetéig módosítható.</div>
+        <form method="post" action="/bonusz" class="ro" style="align-items:flex-end">
+        <div style="flex:1;min-width:180px"><label>Világbajnok (nemzet)</label>
+        <input type="text" name="vilagbajnok" value="{b['vilagbajnok']}" placeholder="pl. Argentína"></div>
+        <div style="flex:1;min-width:180px"><label>Gólkirály (teljes név)</label>
+        <input type="text" name="golkiraly" value="{b['golkiraly']}" placeholder="pl. Kylian Mbappé"></div>
+        <button class="btn" type="submit">Mentés</button></form></div>"""
+
+    # --- Meccsek napokra bontva ---
+    meccsek = queries.meccsek_listaja(conn)
     sorok = ""
-    for m in queries.meccsek_listaja(conn):
+    aktualis_nap = None
+    for m in meccsek:
         mid, grp, hazai, vendeg, ko, eh, ev = m
+
+        nk = nap_kulcs(ko)
+        if nk != aktualis_nap:
+            aktualis_nap = nk
+            sorok += (f'<div class="daysep"><div class="dlabel">{nap_cimke(nk)}</div>'
+                      f'<div class="dline"></div></div>')
+
         zart = most >= ko
         th, tv = tippek.get(mid, ("", ""))
-        eredmeny = ""
-        if eh is not None:
-            eredmeny = f'<span class="result">{eh}–{ev}</span>'
+        van_tipp = mid in tippek
+        tipped_cls = " tipped" if van_tipp else ""
+
         if zart:
-            sorok += f"""<div class="match closed"><div class="grp">{grp}</div>
-            <div class="teams">{hazai} – {vendeg} {eredmeny}
-            <div class="ko">{ko_human(ko)} · lezárt · tipped: {th if th!="" else "–"}:{tv if tv!="" else "–"}</div>
-            </div></div>"""
+            # eredmény + pont-színezés
+            eredmeny = ""
+            if eh is not None:
+                eredmeny = f'<span class="result">{eh}–{ev}</span>'
+            pont_badge = ""
+            if mid in pontok:
+                p = pontok[mid]
+                cls = "pt3" if p == 3 else ("pt12" if p in (1, 2) else "pt0")
+                pont_badge = f'<span class="ptbadge {cls}">{p} pont</span>'
+            tipp_str = f'{th}:{tv}' if van_tipp else '–'
+            sorok += f"""<div class="match closed{tipped_cls}"><div class="grp">{grp}</div>
+            <div class="teams">{hazai} – {vendeg} {eredmeny}{pont_badge}
+            <div class="ko">{ko_ido(ko)} · lezárt · tipped: {tipp_str}</div></div></div>"""
         else:
-            sorok += f"""<div class="match"><div class="grp">{grp}</div>
-            <div class="teams">{hazai} – {vendeg}<div class="ko">{ko_human(ko)}</div></div>
+            sorok += f"""<div class="match{tipped_cls}"><div class="grp">{grp}</div>
+            <div class="teams">{hazai} – {vendeg}<div class="ko">{ko_ido(ko)}</div></div>
             <form method="post" action="/tipp" style="display:flex;gap:8px;align-items:center">
             <input type="hidden" name="match_id" value="{mid}">
             <input class="score-in" type="number" min="0" name="th" value="{th}" required>
@@ -111,8 +179,9 @@ def fooldal(request: Request, uzenet: str = ""):
             <input class="score-in" type="number" min="0" name="tv" value="{tv}" required>
             <button class="btn small" type="submit">Mentés</button></form></div>"""
 
-    body = f"""<h1>Meccsek</h1><p class="sub">Tippelj a meccs kezdete előtt. A lezárt meccsek nem módosíthatók.</p>
-    {flash}{sorok}"""
+    body = f"""<h1>Meccsek</h1>
+    <p class="sub">Tippelj a meccs kezdete előtt. A lezárt meccsek nem módosíthatók.</p>
+    {flash}{bonusz_html}{sorok}"""
     return T.page("Tippek", body, nev)
 
 
@@ -128,31 +197,10 @@ def tipp(request: Request, match_id: int = Form(...), th: int = Form(...), tv: i
 
 # ---------- Bónusz-tippek ----------
 
-@app.get("/bonusz", response_class=HTMLResponse)
-def bonusz_oldal(request: Request, uzenet: str = ""):
-    conn = db.kapcsolat()
-    user = aktualis_user(request, conn)
-    if not user:
-        return RedirectResponse("/belepes", status_code=303)
-    uid, nev = user
-    b = queries.sajat_bonusz(conn, uid)
-    elso = conn.execute("SELECT kickoff_utc FROM matches ORDER BY kickoff_utc LIMIT 1").fetchone()
-    zart = elso and queries.now_utc_iso() >= elso[0]
-    flash = f'<div class="flash ok">{uzenet}</div>' if uzenet else ""
-    if zart:
-        body = f"""<h1>Bónusz-tippek</h1><p class="sub">A leadás lezárult.</p>{flash}
-        <div class="card"><p>Világbajnok tipped: <b>{b['vilagbajnok'] or '–'}</b></p>
-        <p>Gólkirály tipped: <b>{b['golkiraly'] or '–'}</b></p></div>"""
-    else:
-        body = f"""<h1>Bónusz-tippek</h1>
-        <p class="sub">Világbajnok: 10 pont · Gólkirály: 6 pont. A torna kezdetéig módosítható.</p>{flash}
-        <div class="card"><form method="post" action="/bonusz">
-        <div class="field"><label>Világbajnok (csapat)</label>
-        <input type="text" name="vilagbajnok" value="{b['vilagbajnok']}"></div>
-        <div class="field"><label>Gólkirály (játékos)</label>
-        <input type="text" name="golkiraly" value="{b['golkiraly']}"></div>
-        <button class="btn" type="submit">Mentés</button></form></div>"""
-    return T.page("Bónusz", body, nev)
+@app.get("/bonusz")
+def bonusz_oldal_redirect():
+    # A bónusz-blokk átkerült a főoldal tetejére; a régi link odairányít.
+    return RedirectResponse("/", status_code=303)
 
 
 @app.post("/bonusz")
@@ -162,7 +210,7 @@ def bonusz(request: Request, vilagbajnok: str = Form(""), golkiraly: str = Form(
     if not user:
         return RedirectResponse("/belepes", status_code=303)
     ok, uz = queries.bonusz_bead(conn, user[0], vilagbajnok, golkiraly)
-    return RedirectResponse(f"/bonusz?uzenet={uz.replace(' ','+')}", status_code=303)
+    return RedirectResponse(f"/?uzenet={uz.replace(' ','+')}", status_code=303)
 
 
 # ---------- Ranglista ----------
@@ -179,7 +227,16 @@ def ranglista_oldal(request: Request):
         <td>{s['meccs_pont']}</td><td>{s['bonusz_pont']}</td><td><b>{s['ossz']}</b></td></tr>"""
     body = f"""<h1>Ranglista</h1><p class="sub">Meccspontok + bónuszpontok.</p>
     <div class="card"><table><thead><tr><th>#</th><th>Név</th>
-    <th>Meccs</th><th>Bónusz</th><th>Összesen</th></tr></thead><tbody>{sorok}</tbody></table></div>"""
+    <th>Meccs</th><th>Bónusz</th><th>Összesen</th></tr></thead><tbody>{sorok}</tbody></table></div>
+    <div class="card"><h2 style="font-size:1.05rem;margin-bottom:12px">Pontozás</h2>
+    <table><tbody>
+    <tr><td><span class="ptbadge pt3">3</span></td><td>Pontos eredmény (a döntetlené is)</td></tr>
+    <tr><td><span class="ptbadge pt12">2</span></td><td>Helyes győztes és helyes gólkülönbség</td></tr>
+    <tr><td><span class="ptbadge pt12">1</span></td><td>Helyes kimenetel (győztes vagy döntetlen), de rossz eredmény</td></tr>
+    <tr><td><span class="ptbadge pt0">0</span></td><td>Rossz tipp</td></tr>
+    <tr><td><b style="color:var(--accent)">10</b></td><td>Világbajnok eltalálása</td></tr>
+    <tr><td><b style="color:var(--accent)">6</b></td><td>Gólkirály eltalálása</td></tr>
+    </tbody></table></div>"""
     return T.page("Ranglista", body, user[1])
 
 
