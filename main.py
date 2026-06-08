@@ -256,8 +256,8 @@ def ranglista_oldal(request: Request):
     <tr><td><span class="ptbadge pt12">2</span></td><td>Helyes győztes és helyes gólkülönbség</td></tr>
     <tr><td><span class="ptbadge pt12">1</span></td><td>Helyes kimenetel (győztes vagy döntetlen), de rossz eredmény</td></tr>
     <tr><td><span class="ptbadge pt0">0</span></td><td>Rossz tipp</td></tr>
-    <tr><td><b style="color:var(--accent)">10</b></td><td>Világbajnok eltalálása</td></tr>
-    <tr><td><b style="color:var(--accent)">6</b></td><td>Gólkirály eltalálása</td></tr>
+    <tr><td><span class="ptbadge ptbonus">10</span></td><td>Világbajnok eltalálása</td></tr>
+    <tr><td><span class="ptbadge ptbonus">6</span></td><td>Gólkirály eltalálása</td></tr>
     </tbody></table></div>"""
     return T.page("Ranglista", body, user[1])
 

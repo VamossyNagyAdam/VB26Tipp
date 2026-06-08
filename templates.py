@@ -66,6 +66,7 @@ select.sel{padding:11px 13px;background:var(--bg);border:1px solid var(--line);
 .pt3{background:rgba(0,229,160,.15);color:var(--accent);border:1px solid rgba(0,229,160,.4)}
 .pt12{background:rgba(255,184,0,.15);color:var(--accent2);border:1px solid rgba(255,184,0,.4)}
 .pt0{background:rgba(255,84,112,.15);color:var(--danger);border:1px solid rgba(255,84,112,.4)}
+.ptbonus{background:rgba(0,229,160,.15);color:var(--accent);border:1px solid rgba(0,229,160,.4)}
 /* napi elválasztó */
 .daysep{display:flex;align-items:center;gap:14px;margin:26px 2px 14px}
 .daysep .dline{flex:1;height:1px;background:var(--line)}
@@ -79,6 +80,25 @@ select.sel{padding:11px 13px;background:var(--bg);border:1px solid var(--line);
 .bonusbox .ro{display:flex;gap:24px;flex-wrap:wrap}
 .bonusbox .ro div b{color:var(--accent)}
 .bonusbox .locked{font-size:.78rem;color:var(--accent2);font-weight:700;margin-top:6px}
+
+/* Mobil-optimalizálás (~480px alatt) */
+@media (max-width:480px){
+  .wrap{padding:16px 12px 60px}
+  header.topbar{padding:14px 0;margin-bottom:20px;flex-wrap:wrap;gap:8px}
+  .logo{font-size:1.2rem}
+  .nav a{margin-left:0;margin-right:14px;font-size:.9rem}
+  h1{font-size:1.35rem}
+  .card{padding:16px}
+  th,td{padding:9px 8px;font-size:.9rem}
+  th{font-size:.7rem}
+  /* a ranglista-táblázat ne lógjon ki: vízszintes görgetés ha kell */
+  .card{overflow-x:auto}
+  /* meccssorok: a beviteli rész törhessen új sorba szűk kijelzőn */
+  .match{padding:14px}
+  .match form{flex-wrap:wrap}
+  .bonusbox .ro{flex-direction:column;gap:14px}
+  .bonusbox .ro>div,.bonusbox form>div{width:100%}
+}
 """
 
 def page(title, body, nev=None):
