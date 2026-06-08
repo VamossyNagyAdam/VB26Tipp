@@ -269,6 +269,26 @@ def health():
     return {"status": "healthy"}
 
 
+@app.api_route("/sync", methods=["GET", "POST"])
+def sync_endpoint(kulcs: str = ""):
+    """Külső cron hívja (percenként). Csak akkor hív API-t, ha van olyan
+    befejezett meccs, ami még eredményre vár – így nem fut feleslegesen."""
+    if kulcs != ADMIN_JELSZO:
+        return {"hiba": "Hibás kulcs."}
+    token = os.environ.get("FOOTBALL_DATA_TOKEN")
+    if not token:
+        return {"hiba": "Nincs beállítva FOOTBALL_DATA_TOKEN."}
+    import sync_results
+    conn = db.kapcsolat()
+    if not sync_results.van_fuggoben(conn):
+        return {"ok": "Nincs függőben lévő meccs, szinkron kihagyva."}
+    try:
+        f, nf, k, np, o = sync_results.sync(conn, token)
+        return {"ok": f"Szinkron kész. Eredmény frissítve: {f}, név frissítve: {nf}."}
+    except Exception as e:
+        return {"hiba": f"Szinkron hiba: {type(e).__name__}"}
+
+
 # ---------- Admin webes felület ----------
 
 @app.get("/admin", response_class=HTMLResponse)
@@ -324,9 +344,22 @@ def admin_oldal(request: Request, kulcs: str = "", uzenet: str = "", hiba: str =
         van_eredmeny = eh is not None
         eh_val = eh if van_eredmeny else ""
         ev_val = ev if van_eredmeny else ""
-        jeloles = ' · <span class="result">kész</span>' if van_eredmeny else ""
+        # forrás kiolvasása
+        forras_row = conn.execute("SELECT eredmeny_forras FROM matches WHERE id=?", (mid,)).fetchone()
+        forras = forras_row[0] if forras_row else None
+        jeloles = ""
         torol_gomb = ""
+        auto_gomb = ""
         if van_eredmeny:
+            if forras == "kezi":
+                jeloles = ' · <span style="color:var(--accent2)">kézi eredmény</span>'
+                # lehetőség visszaváltani automatikusra
+                auto_gomb = f"""<form method="post" action="/admin/eredmeny-auto" style="display:inline">
+                <input type="hidden" name="kulcs" value="{kulcs}">
+                <input type="hidden" name="match_id" value="{mid}">
+                <button class="btn small ghost" type="submit">Auto</button></form>"""
+            else:
+                jeloles = ' · <span style="color:var(--accent)">automatikus</span>'
             torol_gomb = f"""<form method="post" action="/admin/eredmeny-torol" style="display:inline">
             <input type="hidden" name="kulcs" value="{kulcs}">
             <input type="hidden" name="match_id" value="{mid}">
@@ -339,7 +372,7 @@ def admin_oldal(request: Request, kulcs: str = "", uzenet: str = "", hiba: str =
         <input class="score-in" type="number" min="0" name="eh" value="{eh_val}" required>
         <span>:</span>
         <input class="score-in" type="number" min="0" name="ev" value="{ev_val}" required>
-        <button class="btn small" type="submit">Rögzít</button></form>{torol_gomb}</div>"""
+        <button class="btn small" type="submit">Rögzít</button></form>{auto_gomb}{torol_gomb}</div>"""
 
     # Torna-végeredmény jelenlegi értéke
     tr = conn.execute(
@@ -402,11 +435,20 @@ def admin_eredmeny(kulcs: str = Form(...), match_id: int = Form(...),
     if kulcs != ADMIN_JELSZO:
         return RedirectResponse("/admin", status_code=303)
     conn = db.kapcsolat()
-    ok, uz = queries.eredmeny_rogzit(conn, match_id, eh, ev)
+    ok, uz = queries.eredmeny_rogzit(conn, match_id, eh, ev, forras="kezi")
     kulcs_p = f"kulcs={kulcs}"
     if ok:
         return RedirectResponse(f"/admin?{kulcs_p}&uzenet={uz.replace(' ','+')}", status_code=303)
     return RedirectResponse(f"/admin?{kulcs_p}&hiba={uz.replace(' ','+')}", status_code=303)
+
+
+@app.post("/admin/eredmeny-auto")
+def admin_eredmeny_auto(kulcs: str = Form(...), match_id: int = Form(...)):
+    if kulcs != ADMIN_JELSZO:
+        return RedirectResponse("/admin", status_code=303)
+    conn = db.kapcsolat()
+    ok, uz = queries.eredmeny_auto_engedelyez(conn, match_id)
+    return RedirectResponse(f"/admin?kulcs={kulcs}&uzenet={uz.replace(' ','+')}", status_code=303)
 
 
 @app.post("/admin/torna")

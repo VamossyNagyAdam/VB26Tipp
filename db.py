@@ -50,12 +50,14 @@ CREATE TABLE IF NOT EXISTS players (
 
 CREATE TABLE IF NOT EXISTS matches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    csoport TEXT,                       -- pl. 'A', 'B' ... vagy 'R16', 'QF' stb.
+    csoport TEXT,                       -- pl. 'A', 'B' ... vagy 'R32', 'R16', 'QF', 'SF', '3rd', 'F'
     hazai TEXT NOT NULL,
     vendeg TEXT NOT NULL,
     kickoff_utc TEXT NOT NULL,          -- ISO 8601 UTC, pl. '2026-06-11T19:00:00Z'
     eredmeny_hazai INTEGER,             -- NULL amíg nincs vége (rendes játékidő!)
-    eredmeny_vendeg INTEGER             -- NULL amíg nincs vége
+    eredmeny_vendeg INTEGER,            -- NULL amíg nincs vége
+    fd_id INTEGER,                      -- football-data.org meccs-ID (stabil párosításhoz)
+    eredmeny_forras TEXT                -- 'kezi' | 'auto' | NULL (ha nincs eredmény)
 );
 
 CREATE TABLE IF NOT EXISTS predictions (
@@ -117,6 +119,14 @@ def _migracio(conn):
     oszlopok = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
     if "aktiv" not in oszlopok:
         conn.execute("ALTER TABLE users ADD COLUMN aktiv INTEGER NOT NULL DEFAULT 1")
+        conn.commit()
+
+    m_oszlopok = [r[1] for r in conn.execute("PRAGMA table_info(matches)").fetchall()]
+    if "fd_id" not in m_oszlopok:
+        conn.execute("ALTER TABLE matches ADD COLUMN fd_id INTEGER")
+        conn.commit()
+    if "eredmeny_forras" not in m_oszlopok:
+        conn.execute("ALTER TABLE matches ADD COLUMN eredmeny_forras TEXT")
         conn.commit()
 
 

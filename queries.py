@@ -142,16 +142,17 @@ def sajat_bonusz(conn, user_id: int):
 
 # ---------- Eredmény + pontszámítás (admin) ----------
 
-def eredmeny_rogzit(conn, match_id: int, eh: int, ev: int):
+def eredmeny_rogzit(conn, match_id: int, eh: int, ev: int, forras: str = "kezi"):
     """
     Meccs RENDES JÁTÉKIDŐ eredményének rögzítése + minden tipp pontozása.
+    forras: 'kezi' (admin írta be) vagy 'auto' (sync húzta be).
     """
     m = meccs(conn, match_id)
     if not m:
         return False, "Nincs ilyen meccs."
     conn.execute(
-        "UPDATE matches SET eredmeny_hazai=?, eredmeny_vendeg=? WHERE id=?",
-        (eh, ev, match_id),
+        "UPDATE matches SET eredmeny_hazai=?, eredmeny_vendeg=?, eredmeny_forras=? WHERE id=?",
+        (eh, ev, forras, match_id),
     )
     # minden tipp újrapontozása erre a meccsre
     tippek = conn.execute(
@@ -169,6 +170,18 @@ def eredmeny_rogzit(conn, match_id: int, eh: int, ev: int):
         )
     conn.commit()
     return True, f"Eredmény rögzítve, {len(tippek)} tipp pontozva."
+
+
+def eredmeny_auto_engedelyez(conn, match_id: int):
+    """A kézi eredmény-zár feloldása: a meccs forrása NULL lesz, így a sync
+    legközelebb felülírhatja az automatikus eredménnyel (és újrapontoz)."""
+    conn.execute(
+        "UPDATE matches SET eredmeny_hazai=NULL, eredmeny_vendeg=NULL, eredmeny_forras=NULL WHERE id=?",
+        (match_id,),
+    )
+    conn.execute("DELETE FROM points WHERE match_id=?", (match_id,))
+    conn.commit()
+    return True, "Visszaállítva automatikusra – a következő szinkron felülírja."
 
 
 def torna_eredmeny_rogzit(conn, vilagbajnok: str, golkiralyok_csv: str):
@@ -265,7 +278,7 @@ def user_aktival(conn, user_id: int):
 def eredmeny_torol(conn, match_id: int):
     """Törli a meccs eredményét és az arra adott pontokat (tippeket meghagyja)."""
     conn.execute(
-        "UPDATE matches SET eredmeny_hazai=NULL, eredmeny_vendeg=NULL WHERE id=?",
+        "UPDATE matches SET eredmeny_hazai=NULL, eredmeny_vendeg=NULL, eredmeny_forras=NULL WHERE id=?",
         (match_id,),
     )
     conn.execute("DELETE FROM points WHERE match_id=?", (match_id,))
