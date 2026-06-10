@@ -202,27 +202,60 @@ def fooldal(request: Request, uzenet: str = ""):
         else:
             van_nyitott = True
             # a beviteli mezők a közös formhoz tartoznak (th_{mid}, tv_{mid}),
-            # plusz egy meccsenkénti gyors mentés gomb
-            sorok += f"""<div class="match{tipped_cls}"><div class="grp">{grp}</div>
+            # a Ment gomb alapból rejtett, JS fedi fel módosításkor (data-mid jelöli a meccset)
+            sorok += f"""<div class="match{tipped_cls}" data-mid="{mid}"><div class="grp">{grp}</div>
             <div class="teams">{h_disp} – {v_disp}<div class="ko">{ko_ido(ko)} · {allapot}</div></div>
             <div style="display:flex;gap:6px;align-items:center">
-            <input class="score-sm" type="number" min="0" name="th_{mid}" value="{th}" form="tippform">
+            <input class="score-sm" type="number" min="0" name="th_{mid}" value="{th}" form="tippform"
+            data-mid="{mid}" data-init="{th}">
             <span>:</span>
-            <input class="score-sm" type="number" min="0" name="tv_{mid}" value="{tv}" form="tippform">
-            <button class="btn small" type="submit" form="tippform"
-            formaction="/tipp" name="egy_meccs" value="{mid}">Ment</button></div></div>"""
+            <input class="score-sm" type="number" min="0" name="tv_{mid}" value="{tv}" form="tippform"
+            data-mid="{mid}" data-init="{tv}">
+            <button class="btn small hide-until-edit" type="submit" form="tippform"
+            formaction="/tipp" name="egy_meccs" value="{mid}" data-save-mid="{mid}">Ment</button></div></div>"""
 
     # az egész lista egy közös formba van csomagolva (Mindet ment)
     mindet_gomb = ""
     if van_nyitott:
-        mindet_gomb = ('<div class="saveall"><button class="btn" type="submit" '
-                       'form="tippform" formaction="/tipp-mind">Összes tipp mentése</button></div>')
+        mindet_gomb = ('<div class="saveall hide-until-edit" id="saveall-bar">'
+                       '<button class="btn" type="submit" form="tippform" '
+                       'formaction="/tipp-mind">Összes tipp mentése</button></div>')
+
+    # JS: a Ment gomb csak a módosított meccsnél jelenik meg; a közös gomb,
+    # ha legalább két különböző meccsen módosítottak.
+    js = """<script>
+(function(){
+  var modositott = {};
+  function frissit(){
+    // hány különböző meccsen van eltérés?
+    var db = Object.keys(modositott).filter(function(k){return modositott[k];}).length;
+    var bar = document.getElementById('saveall-bar');
+    if(bar){ bar.style.display = (db >= 2) ? 'block' : 'none'; }
+  }
+  function meccsAllapot(mid){
+    // a meccs valamelyik mezője eltér-e a kezdetitől?
+    var inputs = document.querySelectorAll('input[data-mid="'+mid+'"]');
+    var valtozott = false;
+    inputs.forEach(function(inp){
+      if(inp.value !== inp.getAttribute('data-init')){ valtozott = true; }
+    });
+    modositott[mid] = valtozott;
+    // a meccs Ment gombja
+    var gomb = document.querySelector('button[data-save-mid="'+mid+'"]');
+    if(gomb){ gomb.style.display = valtozott ? 'inline-block' : 'none'; }
+    frissit();
+  }
+  document.querySelectorAll('input[data-mid]').forEach(function(inp){
+    inp.addEventListener('input', function(){ meccsAllapot(inp.getAttribute('data-mid')); });
+  });
+})();
+</script>"""
 
     body = f"""<h1>Meccsek</h1>
     <p class="sub">Tippelj a meccs kezdete előtt. A lezárt meccsek nem módosíthatók.</p>
     {flash}{bonusz_html}
     <form id="tippform" method="post"></form>
-    {sorok}{mindet_gomb}"""
+    {sorok}{mindet_gomb}{js}"""
     return T.page("Tippek", body, nev)
 
 

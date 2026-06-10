@@ -52,6 +52,8 @@ h1{font-size:1.6rem;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
 .saveall .btn{width:100%;max-width:340px}
 /* bónusz leadva jelzés */
 .leadva{font-size:.8rem;color:var(--accent);font-weight:700}
+/* alapból rejtett mentő gombok (JS fedi fel módosításkor) */
+.hide-until-edit{display:none}
 .btn{background:var(--accent);color:#06231a;border:none;border-radius:10px;
   padding:11px 20px;font-weight:800;cursor:pointer;font-size:.95rem}
 .btn:hover{filter:brightness(1.08)}
