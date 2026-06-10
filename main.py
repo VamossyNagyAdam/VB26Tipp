@@ -572,8 +572,28 @@ def admin_oldal(request: Request, kulcs: str = "", uzenet: str = "", hiba: str =
     ).fetchone()
     tr_vb = tr[0] if tr else ""
     tr_gk = tr[1] if tr else ""
+    tr_gk_lista = [g.strip() for g in tr_gk.split(",")] if tr_gk else []
 
-    body = f"""<h1>Admin</h1><p class="sub">Felhasználók, eredmények és torna-végeredmény kezelése.</p>
+    # dropdown opciók a csapatokhoz és játékosokhoz
+    vb_opts = '<option value="">– válassz –</option>' + "".join(
+        f'<option value="{c}"{" selected" if c==tr_vb else ""}>{c}</option>'
+        for c in queries.csapatok(conn))
+    jatekos_lista = queries.jatekosok(conn)
+
+    def gk_select(kivalasztott=""):
+        opts = '<option value="">– válassz –</option>' + "".join(
+            f'<option value="{j}"{" selected" if j==kivalasztott else ""}>{j}</option>'
+            for j in jatekos_lista)
+        return f'<select name="golkiraly" class="sel gk-select" style="margin-bottom:8px">{opts}</select>'
+
+    # az első gólkirály-dropdown (+ a már rögzítettek, ha holtverseny volt)
+    if tr_gk_lista:
+        gk_mezok = "".join(gk_select(g) for g in tr_gk_lista)
+    else:
+        gk_mezok = gk_select()
+
+    body = f"""<h1>Admin</h1><p class="sub">Felhasználók, eredmények és torna-végeredmény kezelése.
+    <a href="/admin/tippelesek?kulcs={kulcs}" style="color:var(--accent)">Tippelési állapot →</a></p>
     {flash}
 
     <div class="card"><h2 style="font-size:1.05rem;margin-bottom:12px">Új felhasználó</h2>
@@ -594,14 +614,24 @@ def admin_oldal(request: Request, kulcs: str = "", uzenet: str = "", hiba: str =
     <button class="btn" type="submit">Hozzáad</button></form></div>
 
     <div class="card"><h2 style="font-size:1.05rem;margin-bottom:12px">Torna-végeredmény (bónusz-pontok)</h2>
-    <p class="pill" style="margin-bottom:12px">A gólkirályokat vesszővel válaszd el (holtverseny esetén több név).</p>
-    <form method="post" action="/admin/torna" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <p class="pill" style="margin-bottom:12px">Döntetlen gólkirály-cím esetén add hozzá a többi játékost a „+1 gólkirály" gombbal.</p>
+    <form method="post" action="/admin/torna" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start">
     <input type="hidden" name="kulcs" value="{kulcs}">
     <div style="flex:1;min-width:160px"><label>Világbajnok (nemzet)</label>
-    <input type="text" name="vilagbajnok" value="{tr_vb}"></div>
+    <select name="vilagbajnok" class="sel">{vb_opts}</select></div>
     <div style="flex:1;min-width:160px"><label>Gólkirály(ok)</label>
-    <input type="text" name="golkiralyok" value="{tr_gk}"></div>
-    <button class="btn" type="submit">Rögzít</button></form></div>
+    <div id="gk-container">{gk_mezok}</div>
+    <button type="button" class="btn small ghost" onclick="addGk()">+1 gólkirály</button></div>
+    <button class="btn" type="submit" style="align-self:flex-end">Rögzít</button></form></div>
+    <script>
+    function addGk(){{
+      var c = document.getElementById('gk-container');
+      var first = c.querySelector('select.gk-select');
+      var copy = first.cloneNode(true);
+      copy.value = "";
+      c.appendChild(copy);
+    }}
+    </script>
 
     <h2 style="font-size:1.15rem;margin:28px 2px 4px">Meccsek — eredménybevitel</h2>
     <p class="sub">A # a meccs azonosítója. Rendes játékidő eredménye.</p>
@@ -643,12 +673,55 @@ def admin_eredmeny_auto(kulcs: str = Form(...), match_id: int = Form(...)):
     return RedirectResponse(f"/admin?kulcs={kulcs}&uzenet={uz.replace(' ','+')}", status_code=303)
 
 
-@app.post("/admin/torna")
-def admin_torna(kulcs: str = Form(...), vilagbajnok: str = Form(...), golkiralyok: str = Form(...)):
+@app.get("/admin/tippelesek", response_class=HTMLResponse)
+def admin_tippelesek(request: Request, kulcs: str = ""):
     if kulcs != ADMIN_JELSZO:
         return RedirectResponse("/admin", status_code=303)
     conn = db.kapcsolat()
-    ok, uz = queries.torna_eredmeny_rogzit(conn, vilagbajnok, golkiralyok)
+    most = queries.now_utc_iso()
+    aktiv_szam = conn.execute("SELECT COUNT(*) FROM users WHERE aktiv=1").fetchone()[0]
+
+    # csak a még nyitott (jövőbeli) meccsek érdekesek – ahol még lehet hiányzó tipp
+    sorok = ""
+    aktualis_nap = None
+    for m in queries.meccsek_listaja(conn, csak_csoportkor=False):
+        mid, grp, hazai, vendeg, ko, eh, ev, matchday, hrov, vrov = m
+        if most >= ko:
+            continue  # lezárt meccs: már nincs értelme sürgetni
+        megvan, hianyzik = queries.tippelesi_allapot(conn, mid)
+        nk = nap_kulcs(ko)
+        if nk != aktualis_nap:
+            aktualis_nap = nk
+            sorok += (f'<div class="daysep"><div class="dlabel">{nap_cimke(nk)}</div>'
+                      f'<div class="dline"></div></div>')
+        # arány + a hiányzók neve
+        arany = f"{len(megvan)}/{aktiv_szam}"
+        szin = "var(--accent)" if not hianyzik else "var(--accent2)"
+        hianyzik_txt = ", ".join(hianyzik) if hianyzik else "mindenki tippelt ✓"
+        sorok += f"""<div class="match"><div class="grp">{grp}</div>
+        <div class="teams">{hazai} – {vendeg}
+        <div class="ko">{ko_ido(ko)} · <b style="color:{szin}">{arany}</b> · hiányzik: {hianyzik_txt}</div></div></div>"""
+
+    if not sorok:
+        sorok = '<p class="pill">Nincs nyitott meccs, amire még tippelni lehetne.</p>'
+
+    body = f"""<h1>Tippelési állapot</h1>
+    <p class="sub">Ki tippelt már a közelgő meccsekre. (A tippek tartalma itt nem látszik.)
+    <a href="/admin?kulcs={kulcs}" style="color:var(--accent)">← Vissza az adminhoz</a></p>
+    {sorok}"""
+    return T.page("Tippelési állapot", body)
+
+
+@app.post("/admin/torna")
+async def admin_torna(request: Request, kulcs: str = Form(...), vilagbajnok: str = Form(...)):
+    if kulcs != ADMIN_JELSZO:
+        return RedirectResponse("/admin", status_code=303)
+    form = await request.form()
+    # több golkiraly mező lehet (holtverseny) -> összegyűjtjük, üreseket kihagyjuk
+    golkiralyok = [g.strip() for g in form.getlist("golkiraly") if g.strip()]
+    golkiralyok_csv = ", ".join(golkiralyok)
+    conn = db.kapcsolat()
+    ok, uz = queries.torna_eredmeny_rogzit(conn, vilagbajnok, golkiralyok_csv)
     return RedirectResponse(f"/admin?kulcs={kulcs}&uzenet={uz.replace(' ','+')}", status_code=303)
 
 

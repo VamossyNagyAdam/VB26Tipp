@@ -340,3 +340,16 @@ def osszes_bonusz(conn):
         "JOIN users u ON u.id=b.user_id WHERE u.aktiv=1",
     ).fetchall()
     return {r[0]: (r[1], r[2]) for r in rows}
+
+
+# ---------- Admin: tippelési állapot (ki tippelt már, tipp tartalma nélkül) ----------
+
+def tippelesi_allapot(conn, match_id: int):
+    """Egy meccsre: kik tippeltek már és kik nem (csak nevek, tipp NÉLKÜL)."""
+    aktiv = conn.execute("SELECT id, nev FROM users WHERE aktiv=1 ORDER BY nev").fetchall()
+    tippeltek = {r[0] for r in conn.execute(
+        "SELECT user_id FROM predictions WHERE match_id=?", (match_id,)
+    ).fetchall()}
+    megvan = [nev for uid, nev in aktiv if uid in tippeltek]
+    hianyzik = [nev for uid, nev in aktiv if uid not in tippeltek]
+    return megvan, hianyzik
