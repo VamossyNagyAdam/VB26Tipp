@@ -141,10 +141,10 @@ def fooldal(request: Request, uzenet: str = ""):
         <div class="lead">Világbajnok: 10 pont · Gólkirály: 6 pont. A torna kezdetéig módosítható.</div>
         <form method="post" action="/bonusz" class="ro" style="align-items:flex-end">
         <div style="flex:1;min-width:180px"><label>Világbajnok (nemzet)</label>
-        <select name="vilagbajnok" class="sel">{csapat_opts}</select></div>
+        <select name="vilagbajnok" class="sel" data-bonusz data-init="{b['vilagbajnok']}">{csapat_opts}</select></div>
         <div style="flex:1;min-width:180px"><label>Gólkirály</label>
-        <select name="golkiraly" class="sel">{jatekos_opts}</select></div>
-        <button class="btn" type="submit">Mentés</button></form>
+        <select name="golkiraly" class="sel" data-bonusz data-init="{b['golkiraly']}">{jatekos_opts}</select></div>
+        <button class="btn" type="submit" data-bonusz-save>Mentés</button></form>
         <div class="lead" style="margin-top:12px;margin-bottom:0">Nem találod a játékost a listában? Szólj a szervezőnek, és felveszi.</div></div>"""
 
     # --- Meccsek: csak csoportkör, fordulókra és napokra bontva ---
@@ -211,42 +211,56 @@ def fooldal(request: Request, uzenet: str = ""):
             <span>:</span>
             <input class="score-sm" type="number" min="0" name="tv_{mid}" value="{tv}" form="tippform"
             data-mid="{mid}" data-init="{tv}">
-            <button class="btn small hide-until-edit" type="submit" form="tippform"
+            <button class="btn small" type="submit" form="tippform"
             formaction="/tipp" name="egy_meccs" value="{mid}" data-save-mid="{mid}">Ment</button></div></div>"""
 
     # az egész lista egy közös formba van csomagolva (Mindet ment)
     mindet_gomb = ""
     if van_nyitott:
-        mindet_gomb = ('<div class="saveall hide-until-edit" id="saveall-bar">'
+        mindet_gomb = ('<div class="saveall" id="saveall-bar">'
                        '<button class="btn" type="submit" form="tippform" '
                        'formaction="/tipp-mind">Összes tipp mentése</button></div>')
 
-    # JS: a Ment gomb csak a módosított meccsnél jelenik meg; a közös gomb,
-    # ha legalább két különböző meccsen módosítottak.
+    # JS: induláskor elrejti a gombokat, majd módosításkor felfedi.
+    # HA A JS NEM FUT LE, a gombok láthatóak maradnak -> a mentés mindig elérhető.
     js = """<script>
 (function(){
   var modositott = {};
+  // induláskor minden mentő gombot elrejtünk (csak ha a JS fut)
+  document.querySelectorAll('button[data-save-mid]').forEach(function(g){ g.style.display='none'; });
+  var bar = document.getElementById('saveall-bar');
+  if(bar){ bar.style.display='none'; }
   function frissit(){
-    // hány különböző meccsen van eltérés?
     var db = Object.keys(modositott).filter(function(k){return modositott[k];}).length;
-    var bar = document.getElementById('saveall-bar');
     if(bar){ bar.style.display = (db >= 2) ? 'block' : 'none'; }
   }
   function meccsAllapot(mid){
-    // a meccs valamelyik mezője eltér-e a kezdetitől?
     var inputs = document.querySelectorAll('input[data-mid="'+mid+'"]');
     var valtozott = false;
     inputs.forEach(function(inp){
       if(inp.value !== inp.getAttribute('data-init')){ valtozott = true; }
     });
     modositott[mid] = valtozott;
-    // a meccs Ment gombja
     var gomb = document.querySelector('button[data-save-mid="'+mid+'"]');
     if(gomb){ gomb.style.display = valtozott ? 'inline-block' : 'none'; }
     frissit();
   }
   document.querySelectorAll('input[data-mid]').forEach(function(inp){
     inp.addEventListener('input', function(){ meccsAllapot(inp.getAttribute('data-mid')); });
+  });
+
+  // --- Bónusz-tipp mentés gomb ugyanígy ---
+  var bsave = document.querySelector('button[data-bonusz-save]');
+  if(bsave){ bsave.style.display='none'; }
+  function bonuszEllenoriz(){
+    var valtozott = false;
+    document.querySelectorAll('select[data-bonusz]').forEach(function(sel){
+      if(sel.value !== sel.getAttribute('data-init')){ valtozott = true; }
+    });
+    if(bsave){ bsave.style.display = valtozott ? 'inline-block' : 'none'; }
+  }
+  document.querySelectorAll('select[data-bonusz]').forEach(function(sel){
+    sel.addEventListener('change', bonuszEllenoriz);
   });
 })();
 </script>"""
