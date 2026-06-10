@@ -57,7 +57,10 @@ CREATE TABLE IF NOT EXISTS matches (
     eredmeny_hazai INTEGER,             -- NULL amíg nincs vége (rendes játékidő!)
     eredmeny_vendeg INTEGER,            -- NULL amíg nincs vége
     fd_id INTEGER,                      -- football-data.org meccs-ID (stabil párosításhoz)
-    eredmeny_forras TEXT                -- 'kezi' | 'auto' | NULL (ha nincs eredmény)
+    eredmeny_forras TEXT,               -- 'kezi' | 'auto' | NULL (ha nincs eredmény)
+    matchday INTEGER,                   -- forduló a csoportkörben (1,2,3); kieséses: NULL
+    hazai_rov TEXT,                     -- hazai csapat rövidítése (pl. 'ENG')
+    vendeg_rov TEXT                     -- vendég csapat rövidítése (pl. 'MEX')
 );
 
 CREATE TABLE IF NOT EXISTS predictions (
@@ -105,10 +108,15 @@ CREATE TABLE IF NOT EXISTS tournament_results (
 def init_db():
     """Létrehozza a táblákat, ha még nem léteznek, és lefuttatja a migrációkat."""
     conn = kapcsolat()
-    # több utasítás egyben -> soronként hajtjuk végre
-    for utasitas in SEMA.strip().split(";"):
-        if utasitas.strip():
-            conn.execute(utasitas)
+    try:
+        conn.executescript(SEMA)
+    except AttributeError:
+        # ha az executescript nem elérhető, utasításonként (kommentek eltávolításával)
+        import re
+        tiszta = re.sub(r"--.*", "", SEMA)  # soron belüli kommentek törlése
+        for utasitas in tiszta.split(";"):
+            if utasitas.strip():
+                conn.execute(utasitas)
     conn.commit()
     _migracio(conn)
     return conn
@@ -127,6 +135,15 @@ def _migracio(conn):
         conn.commit()
     if "eredmeny_forras" not in m_oszlopok:
         conn.execute("ALTER TABLE matches ADD COLUMN eredmeny_forras TEXT")
+        conn.commit()
+    if "matchday" not in m_oszlopok:
+        conn.execute("ALTER TABLE matches ADD COLUMN matchday INTEGER")
+        conn.commit()
+    if "hazai_rov" not in m_oszlopok:
+        conn.execute("ALTER TABLE matches ADD COLUMN hazai_rov TEXT")
+        conn.commit()
+    if "vendeg_rov" not in m_oszlopok:
+        conn.execute("ALTER TABLE matches ADD COLUMN vendeg_rov TEXT")
         conn.commit()
 
 
