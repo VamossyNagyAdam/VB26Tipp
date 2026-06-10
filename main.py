@@ -355,12 +355,31 @@ def ranglista_oldal(request: Request):
     if not user:
         return RedirectResponse("/belepes", status_code=303)
     sorok = ""
-    for i, s in enumerate(queries.ranglista(conn), 1):
-        sorok += f"""<tr><td>{i}.</td><td>{s['nev']}</td>
-        <td>{s['meccs_pont']}</td><td>{s['bonusz_pont']}</td><td><b>{s['ossz']}</b></td></tr>"""
-    body = f"""<h1>Ranglista</h1><p class="sub">Meccspontok + bónuszpontok.</p>
-    <div class="card"><table><thead><tr><th>#</th><th>Név</th>
-    <th>Meccs</th><th>Bónusz</th><th>Összesen</th></tr></thead><tbody>{sorok}</tbody></table></div>
+    reszletes = queries.ranglista_reszletes(conn)
+    ko_fazis = queries.kieseses_indult(conn)
+
+    if ko_fazis:
+        # kieséses szakasz: Csoportkör / Kieséses / Bónusz / Összes
+        fejlec = ('<th>#</th><th>Név</th><th>Csoportkör</th>'
+                  '<th>Kieséses</th><th>Bónusz</th><th>Összesen</th>')
+        for i, s in enumerate(reszletes, 1):
+            sorok += (f'<tr><td>{i}.</td><td>{s["nev"]}</td>'
+                      f'<td>{s["csoport"]}</td><td>{s["kieses"]}</td>'
+                      f'<td>{s["bonusz"]}</td><td><b>{s["ossz"]}</b></td></tr>')
+        alcim = "Csoportkör + kieséses + bónuszpontok."
+    else:
+        # csoportkör: 1. / 2. / 3. forduló / Összes
+        fejlec = ('<th>#</th><th>Név</th><th>1. ford.</th>'
+                  '<th>2. ford.</th><th>3. ford.</th><th>Összesen</th>')
+        for i, s in enumerate(reszletes, 1):
+            sorok += (f'<tr><td>{i}.</td><td>{s["nev"]}</td>'
+                      f'<td>{s["f1"]}</td><td>{s["f2"]}</td><td>{s["f3"]}</td>'
+                      f'<td><b>{s["ossz"]}</b></td></tr>')
+        alcim = "A csoportkör fordulóinak pontjai. (A bónusz az Összesenben szerepel.)"
+
+    body = f"""<h1>Ranglista</h1><p class="sub">{alcim}</p>
+    <div class="card" style="overflow-x:auto"><table><thead><tr>{fejlec}</tr></thead>
+    <tbody>{sorok}</tbody></table></div>
     <div class="card"><h2 style="font-size:1.05rem;margin-bottom:12px">Hogyan működik a játék?</h2>
     <p style="margin-bottom:10px">Minden mérkőzésre a <b>kezdőrúgás előtt</b> tippelsz: beírod, hány gólt lősz a két csapatnak. A meccs kezdete után a tipped már nem módosítható, úgyhogy érdemes időben leadni. Aki nem tippel egy meccsre, arra <b>0 pontot</b> kap.</p>
     <p style="margin-bottom:10px">A pontokat a lenti táblázat szerint gyűjtöd: minél pontosabb a tipped, annál többet ér. A tippeket a <b>rendes játékidő</b> (90 perc + hosszabbítás nélkül) eredményéhez mérjük – tehát ha egy meccs hosszabbításban vagy tizenegyesekkel dől el, az nem számít, csak a 90 perc utáni állás.</p>

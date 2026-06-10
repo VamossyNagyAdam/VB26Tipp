@@ -353,3 +353,72 @@ def tippelesi_allapot(conn, match_id: int):
     megvan = [nev for uid, nev in aktiv if uid in tippeltek]
     hianyzik = [nev for uid, nev in aktiv if uid not in tippeltek]
     return megvan, hianyzik
+
+
+# ---------- Ranglista fázis-bontással ----------
+
+def kieseses_indult(conn):
+    """Igaz, ha már elkezdődött (vagy lement) legalább egy kieséses meccs."""
+    most = now_utc_iso()
+    row = conn.execute(
+        "SELECT COUNT(*) FROM matches WHERE csoport IN ('R32','R16','QF','SF','3rd','F') "
+        "AND kickoff_utc <= ?",
+        (most,),
+    ).fetchone()
+    return row[0] > 0
+
+
+def ranglista_reszletes(conn):
+    """
+    Részletes ranglista fázis/forduló bontással.
+    Visszaad: lista, soronként:
+      {nev, f1, f2, f3, csoport, kieses, bonusz, ossz}
+    ahol f1/f2/f3 a csoportkör 3 fordulójának pontjai,
+    csoport = f1+f2+f3, kieses = kieséses meccspontok, bonusz = bónuszpontok.
+    """
+    users = conn.execute("SELECT id, nev FROM users WHERE aktiv=1").fetchall()
+
+    # torna-végeredmény a bónuszhoz
+    tr = conn.execute("SELECT vilagbajnok, golkiralyok FROM tournament_results WHERE id=1").fetchone()
+    bajnok = tr[0] if tr else None
+    golkiralyok = [g.strip() for g in tr[1].split(",")] if tr and tr[1] else []
+
+    eredmeny = []
+    for uid, nev in users:
+        # fordulónkénti meccspontok (csoportkör)
+        fordulo_pont = {1: 0, 2: 0, 3: 0}
+        rows = conn.execute(
+            "SELECT m.matchday, COALESCE(SUM(p.pont),0) FROM points p "
+            "JOIN matches m ON m.id=p.match_id "
+            "WHERE p.user_id=? AND m.matchday IN (1,2,3) GROUP BY m.matchday",
+            (uid,),
+        ).fetchall()
+        for md, pont in rows:
+            fordulo_pont[md] = pont
+
+        # kieséses meccspontok
+        kieses = conn.execute(
+            "SELECT COALESCE(SUM(p.pont),0) FROM points p JOIN matches m ON m.id=p.match_id "
+            "WHERE p.user_id=? AND m.csoport IN ('R32','R16','QF','SF','3rd','F')",
+            (uid,),
+        ).fetchone()[0]
+
+        # bónuszpontok
+        bonusz = 0
+        b = conn.execute(
+            "SELECT vilagbajnok, golkiraly FROM bonus_predictions WHERE user_id=?", (uid,)
+        ).fetchone()
+        if b and bajnok is not None:
+            bonusz += scoring.vilagbajnok_pont(b[0], bajnok)
+            bonusz += scoring.golkiraly_pont(b[1], golkiralyok)
+
+        csoport = fordulo_pont[1] + fordulo_pont[2] + fordulo_pont[3]
+        eredmeny.append({
+            "nev": nev,
+            "f1": fordulo_pont[1], "f2": fordulo_pont[2], "f3": fordulo_pont[3],
+            "csoport": csoport, "kieses": kieses, "bonusz": bonusz,
+            "ossz": csoport + kieses + bonusz,
+        })
+
+    eredmeny.sort(key=lambda x: x["ossz"], reverse=True)
+    return eredmeny
