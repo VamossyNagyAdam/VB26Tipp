@@ -134,7 +134,10 @@ def fooldal(request: Request, uzenet: str = ""):
         jatekos_opts = '<option value="">– válassz –</option>' + "".join(
             f'<option value="{j}"{" selected" if j==b["golkiraly"] else ""}>{j}</option>'
             for j in queries.jatekosok(conn))
-        bonusz_html = f"""<div class="bonusbox"><h2>Bónusz-tippek</h2>
+        bonusz_leadva = ""
+        if b["vilagbajnok"] and b["golkiraly"]:
+            bonusz_leadva = '<span class="leadva">✓ Bónusz-tipp leadva</span>'
+        bonusz_html = f"""<div class="bonusbox"><h2>Bónusz-tippek {bonusz_leadva}</h2>
         <div class="lead">Világbajnok: 10 pont · Gólkirály: 6 pont. A torna kezdetéig módosítható.</div>
         <form method="post" action="/bonusz" class="ro" style="align-items:flex-end">
         <div style="flex:1;min-width:180px"><label>Világbajnok (nemzet)</label>
@@ -144,12 +147,21 @@ def fooldal(request: Request, uzenet: str = ""):
         <button class="btn" type="submit">Mentés</button></form>
         <div class="lead" style="margin-top:12px;margin-bottom:0">Nem találod a játékost a listában? Szólj a szervezőnek, és felveszi.</div></div>"""
 
-    # --- Meccsek napokra bontva ---
-    meccsek = queries.meccsek_listaja(conn)
+    # --- Meccsek: csak csoportkör, fordulókra és napokra bontva ---
+    meccsek = queries.meccsek_listaja(conn, csak_csoportkor=True)
     sorok = ""
     aktualis_nap = None
+    aktualis_fordulo = None
+    van_nyitott = False  # van-e még tippelhető meccs (a Mindet ment gombhoz)
     for m in meccsek:
-        mid, grp, hazai, vendeg, ko, eh, ev = m
+        mid, grp, hazai, vendeg, ko, eh, ev, matchday, hrov, vrov = m
+
+        # forduló-elválasztó (a csoportkör 1/2/3. fordulója)
+        if matchday and matchday != aktualis_fordulo:
+            aktualis_fordulo = matchday
+            aktualis_nap = None  # új fordulóban újrakezdjük a nap-jelölést
+            sorok += (f'<div class="roundsep"><div class="rlabel">{matchday}. forduló</div>'
+                      f'<div class="rline"></div></div>')
 
         nk = nap_kulcs(ko)
         if nk != aktualis_nap:
@@ -157,13 +169,16 @@ def fooldal(request: Request, uzenet: str = ""):
             sorok += (f'<div class="daysep"><div class="dlabel">{nap_cimke(nk)}</div>'
                       f'<div class="dline"></div></div>')
 
+        # csapatnevek rövidítéssel (ha van)
+        h_disp = f"{hazai} ({hrov})" if hrov else hazai
+        v_disp = f"{vendeg} ({vrov})" if vrov else vendeg
+
         zart = most >= ko
         th, tv = tippek.get(mid, ("", ""))
         van_tipp = mid in tippek
         tipped_cls = " tipped" if van_tipp else ""
         van_eredmeny = eh is not None
 
-        # Állapot-szöveg meghatározása
         if not zart:
             allapot = "Tipp leadva" if van_tipp else "Még nincs tipp"
         elif van_eredmeny:
@@ -172,43 +187,97 @@ def fooldal(request: Request, uzenet: str = ""):
             allapot = "Mérkőzés folyamatban"
 
         if zart:
-            # eredmény + pont-színezés
             eredmeny = ""
             if van_eredmeny:
                 eredmeny = f'<span class="result">{eh}–{ev}</span>'
             pont_badge = ""
             if van_eredmeny:
-                # kiértékelt meccs: a saját pont (tipp nélkül 0)
                 p = pontok.get(mid, 0)
                 cls = "pt3" if p == 3 else ("pt12" if p in (1, 2) else "pt0")
                 pont_badge = f'<span class="ptbadge {cls}">{p} pont</span>'
             tipp_str = f'{th}:{tv}' if van_tipp else '–'
             sorok += f"""<div class="match closed{tipped_cls}"><div class="grp">{grp}</div>
-            <div class="teams">{hazai} – {vendeg} {eredmeny}{pont_badge}
+            <div class="teams">{h_disp} – {v_disp} {eredmeny}{pont_badge}
             <div class="ko">{ko_ido(ko)} · {allapot} · tipped: {tipp_str}</div></div></div>"""
         else:
+            van_nyitott = True
+            # a beviteli mezők a közös formhoz tartoznak (th_{mid}, tv_{mid}),
+            # plusz egy meccsenkénti gyors mentés gomb
             sorok += f"""<div class="match{tipped_cls}"><div class="grp">{grp}</div>
-            <div class="teams">{hazai} – {vendeg}<div class="ko">{ko_ido(ko)} · {allapot}</div></div>
-            <form method="post" action="/tipp" style="display:flex;gap:8px;align-items:center">
-            <input type="hidden" name="match_id" value="{mid}">
-            <input class="score-in" type="number" min="0" name="th" value="{th}" required>
+            <div class="teams">{h_disp} – {v_disp}<div class="ko">{ko_ido(ko)} · {allapot}</div></div>
+            <div style="display:flex;gap:6px;align-items:center">
+            <input class="score-sm" type="number" min="0" name="th_{mid}" value="{th}" form="tippform">
             <span>:</span>
-            <input class="score-in" type="number" min="0" name="tv" value="{tv}" required>
-            <button class="btn small" type="submit">Mentés</button></form></div>"""
+            <input class="score-sm" type="number" min="0" name="tv_{mid}" value="{tv}" form="tippform">
+            <button class="btn small" type="submit" form="tippform"
+            formaction="/tipp" name="egy_meccs" value="{mid}">Ment</button></div></div>"""
+
+    # az egész lista egy közös formba van csomagolva (Mindet ment)
+    mindet_gomb = ""
+    if van_nyitott:
+        mindet_gomb = ('<div class="saveall"><button class="btn" type="submit" '
+                       'form="tippform" formaction="/tipp-mind">Összes tipp mentése</button></div>')
 
     body = f"""<h1>Meccsek</h1>
     <p class="sub">Tippelj a meccs kezdete előtt. A lezárt meccsek nem módosíthatók.</p>
-    {flash}{bonusz_html}{sorok}"""
+    {flash}{bonusz_html}
+    <form id="tippform" method="post"></form>
+    {sorok}{mindet_gomb}"""
     return T.page("Tippek", body, nev)
 
 
 @app.post("/tipp")
-def tipp(request: Request, match_id: int = Form(...), th: int = Form(...), tv: int = Form(...)):
+async def tipp(request: Request, egy_meccs: int = Form(...)):
+    """Egyetlen meccs tippjének mentése (a 'Ment' gomb a meccs mellett)."""
     conn = db.kapcsolat()
     user = aktualis_user(request, conn)
     if not user:
         return RedirectResponse("/belepes", status_code=303)
-    ok, uz = queries.tipp_bead(conn, user[0], match_id, th, tv)
+    form = await request.form()
+    th = form.get(f"th_{egy_meccs}", "").strip()
+    tv = form.get(f"tv_{egy_meccs}", "").strip()
+    if th == "" or tv == "":
+        return RedirectResponse("/?uzenet=Add+meg+mindkét+gólszámot.", status_code=303)
+    try:
+        ok, uz = queries.tipp_bead(conn, user[0], egy_meccs, int(th), int(tv))
+    except ValueError:
+        uz = "Érvénytelen gólszám."
+    return RedirectResponse(f"/?uzenet={uz.replace(' ','+')}", status_code=303)
+
+
+@app.post("/tipp-mind")
+async def tipp_mind(request: Request):
+    """Az összes kitöltött tipp mentése egyszerre (Mindet ment gomb)."""
+    conn = db.kapcsolat()
+    user = aktualis_user(request, conn)
+    if not user:
+        return RedirectResponse("/belepes", status_code=303)
+    form = await request.form()
+    # th_{mid} / tv_{mid} párok összegyűjtése
+    mid_ek = set()
+    for kulcs in form.keys():
+        if kulcs.startswith("th_") or kulcs.startswith("tv_"):
+            try:
+                mid_ek.add(int(kulcs.split("_", 1)[1]))
+            except ValueError:
+                pass
+    mentve, kihagyva = 0, 0
+    for mid in mid_ek:
+        th = form.get(f"th_{mid}", "").strip()
+        tv = form.get(f"tv_{mid}", "").strip()
+        if th == "" or tv == "":
+            continue  # üresen hagyott meccs: nem mentünk
+        try:
+            ok, _ = queries.tipp_bead(conn, user[0], mid, int(th), int(tv))
+            if ok:
+                mentve += 1
+            else:
+                kihagyva += 1  # pl. már lezárt
+        except ValueError:
+            kihagyva += 1
+    uz = f"{mentve} tipp elmentve."
+    if kihagyva:
+        uz += f" {kihagyva} kihagyva (lezárt vagy hibás)."
     return RedirectResponse(f"/?uzenet={uz.replace(' ','+')}", status_code=303)
 
 
@@ -335,7 +404,7 @@ def admin_oldal(request: Request, kulcs: str = "", uzenet: str = "", hiba: str =
     meccs_sorok = ""
     aktualis_nap = None
     for m in queries.meccsek_listaja(conn):
-        mid, grp, hazai, vendeg, ko, eh, ev = m
+        mid, grp, hazai, vendeg, ko, eh, ev, matchday, hrov, vrov = m
         nk = nap_kulcs(ko)
         if nk != aktualis_nap:
             aktualis_nap = nk

@@ -49,11 +49,15 @@ def user_nev(conn, user_id: int):
 
 # ---------- Meccsek és tippek ----------
 
-def meccsek_listaja(conn):
-    """Összes meccs, kickoff szerint rendezve."""
+def meccsek_listaja(conn, csak_csoportkor=False):
+    """Összes meccs, kickoff szerint rendezve. csak_csoportkor: a kieséses meccsek kihagyása."""
+    szures = ""
+    if csak_csoportkor:
+        szures = "WHERE csoport NOT IN ('R32','R16','QF','SF','3rd','F') "
     return conn.execute(
         "SELECT id, csoport, hazai, vendeg, kickoff_utc, "
-        "eredmeny_hazai, eredmeny_vendeg FROM matches ORDER BY kickoff_utc"
+        "eredmeny_hazai, eredmeny_vendeg, matchday, hazai_rov, vendeg_rov "
+        f"FROM matches {szures}ORDER BY kickoff_utc"
     ).fetchall()
 
 

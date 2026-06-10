@@ -38,6 +38,20 @@ h1{font-size:1.6rem;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
 .match.closed{opacity:.55}
 .score-in{width:46px;padding:8px;text-align:center;background:var(--bg);
   border:1px solid var(--line);border-radius:8px;color:var(--ink);font-size:1rem;font-weight:700}
+/* kisebb mezők a tippeléshez, hogy mobilon is elférjenek egymás mellett */
+.score-sm{width:38px;padding:6px 4px;text-align:center;background:var(--bg);
+  border:1px solid var(--line);border-radius:7px;color:var(--ink);font-size:.95rem;font-weight:700}
+/* forduló-elválasztó (a nap-elválasztótól elütő, hangsúlyosabb) */
+.roundsep{display:flex;align-items:center;gap:12px;margin:30px 2px 8px}
+.roundsep .rlabel{background:var(--accent);color:#06231a;font-weight:800;
+  border-radius:8px;padding:5px 14px;font-size:.9rem;white-space:nowrap}
+.roundsep .rline{flex:1;height:2px;background:var(--accent);opacity:.3}
+/* "mindet ment" lebegő sáv */
+.saveall{position:sticky;bottom:0;background:var(--panel);border-top:1px solid var(--accent);
+  padding:14px;margin:20px -12px -60px;text-align:center;z-index:20}
+.saveall .btn{width:100%;max-width:340px}
+/* bónusz leadva jelzés */
+.leadva{font-size:.8rem;color:var(--accent);font-weight:700}
 .btn{background:var(--accent);color:#06231a;border:none;border-radius:10px;
   padding:11px 20px;font-weight:800;cursor:pointer;font-size:.95rem}
 .btn:hover{filter:brightness(1.08)}
