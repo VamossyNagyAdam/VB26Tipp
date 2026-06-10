@@ -385,6 +385,82 @@ def health():
     return {"status": "healthy"}
 
 
+@app.get("/elo-tippek", response_class=HTMLResponse)
+def elo_tippek(request: Request, fazis: str = "1"):
+    conn = db.kapcsolat()
+    user = aktualis_user(request, conn)
+    if not user:
+        return RedirectResponse("/belepes", status_code=303)
+
+    if fazis not in ("1", "2", "3", "ko"):
+        fazis = "1"
+    most = queries.now_utc_iso()
+
+    # forduló-választó legördülő
+    opciok = [("1", "1. forduló"), ("2", "2. forduló"), ("3", "3. forduló"), ("ko", "Egyenes kiesés")]
+    valaszto = '<select class="sel" onchange="location.href=\'/elo-tippek?fazis=\'+this.value" style="max-width:200px">'
+    for ertek, cimke in opciok:
+        sel = " selected" if ertek == fazis else ""
+        valaszto += f'<option value="{ertek}"{sel}>{cimke}</option>'
+    valaszto += "</select>"
+
+    meccsek = queries.meccsek_fordulora(conn, fazis)
+    userek = queries.aktiv_userek_pontokkal(conn)
+
+    # fejléc: meccsek (rövidítéssel). Lezárt meccs -> tipp látszik; jövőbeli -> csak vonal.
+    fejlec = '<th>Játékos</th><th>Pont</th>'
+    meccs_lezart = []  # (mid, lezart?)
+    for m in meccsek:
+        mid, hazai, vendeg, ko, hrov, vrov, eh, ev = m
+        zart = most >= ko
+        meccs_lezart.append((mid, zart, hrov, vrov, eh, ev))
+        cimke = f"{hrov or hazai[:3]}–{vrov or vendeg[:3]}"
+        if zart:
+            fejlec += f'<th title="{hazai} – {vendeg}">{cimke}</th>'
+        else:
+            # jövőbeli: csak egy vonal, a tippek rejtve (csalás-biztos)
+            fejlec += '<th style="color:var(--muted)">—</th>'
+
+    # sorok: userenként
+    sorok = ""
+    for u in userek:
+        cellak = ""
+        tippek_u = queries.sajat_tippek(conn, u["id"])
+        for mid, zart, hrov, vrov, eh, ev in meccs_lezart:
+            if not zart:
+                cellak += '<td style="color:var(--muted)">—</td>'
+            else:
+                t = tippek_u.get(mid)
+                cellak += f'<td>{t[0]}:{t[1]}</td>' if t else '<td class="pill">–</td>'
+        sorok += f'<tr><td><b>{u["nev"]}</b></td><td>{u["pont"]}</td>{cellak}</tr>'
+
+    # bónusz-szekció: csak a torna kezdete után látható
+    elso = conn.execute("SELECT kickoff_utc FROM matches ORDER BY kickoff_utc LIMIT 1").fetchone()
+    torna_indult = elso and most >= elso[0]
+    bonusz_resz = ""
+    if torna_indult:
+        bonuszok = queries.osszes_bonusz(conn)
+        b_sorok = ""
+        for u in userek:
+            b = bonuszok.get(u["id"], ("", ""))
+            b_sorok += (f'<tr><td><b>{u["nev"]}</b></td>'
+                        f'<td>{b[0] or "–"}</td><td>{b[1] or "–"}</td></tr>')
+        bonusz_resz = f"""<h2 style="font-size:1.15rem;margin:30px 2px 4px">Bónusz-tippek</h2>
+        <div class="card" style="overflow-x:auto"><table><thead><tr>
+        <th>Játékos</th><th>Világbajnok</th><th>Gólkirály</th></tr></thead>
+        <tbody>{b_sorok}</tbody></table></div>"""
+    else:
+        bonusz_resz = ('<h2 style="font-size:1.15rem;margin:30px 2px 4px">Bónusz-tippek</h2>'
+                       '<div class="card"><p class="pill">A bónusz-tippek a torna kezdete után válnak láthatóvá.</p></div>')
+
+    body = f"""<h1>Élő tippek</h1>
+    <p class="sub">Mindenki tippje – csak a már elkezdődött meccsekre. {valaszto}</p>
+    <div class="card" style="overflow-x:auto"><table><thead><tr>{fejlec}</tr></thead>
+    <tbody>{sorok}</tbody></table></div>
+    {bonusz_resz}"""
+    return T.page("Élő tippek", body, user[1])
+
+
 @app.api_route("/sync", methods=["GET", "POST"])
 def sync_endpoint(kulcs: str = ""):
     """Külső cron hívja (percenként). Csak akkor hív API-t, ha van olyan

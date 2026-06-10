@@ -118,7 +118,8 @@ select.sel{padding:11px 13px;background:var(--bg);border:1px solid var(--line);
 def page(title, body, nev=None):
     nav = ""
     if nev:
-        nav = ('<a href="/">Tippek</a><a href="/ranglista">Ranglista</a>'
+        nav = ('<a href="/">Tippek</a><a href="/elo-tippek">Élő tippek</a>'
+               '<a href="/ranglista">Ranglista</a>'
                '<a href="/kilepes">Kilépés</a>')
     else:
         nav = '<a href="/belepes">Belépés</a>'

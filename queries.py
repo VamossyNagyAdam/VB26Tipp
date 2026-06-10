@@ -288,3 +288,55 @@ def eredmeny_torol(conn, match_id: int):
     conn.execute("DELETE FROM points WHERE match_id=?", (match_id,))
     conn.commit()
     return True, "Eredmény törölve, a pontok visszavonva."
+
+
+# ---------- Élő tippek (mindenki tippje, csak lezárt meccsekre) ----------
+
+def meccsek_fordulora(conn, fazis: str):
+    """
+    Meccsek egy adott fázishoz, kickoff szerint.
+    fazis: '1','2','3' (csoportkör fordulók) vagy 'ko' (kieséses).
+    """
+    if fazis in ("1", "2", "3"):
+        return conn.execute(
+            "SELECT id, hazai, vendeg, kickoff_utc, hazai_rov, vendeg_rov, eredmeny_hazai, eredmeny_vendeg "
+            "FROM matches WHERE matchday=? ORDER BY kickoff_utc",
+            (int(fazis),),
+        ).fetchall()
+    # kieséses
+    return conn.execute(
+        "SELECT id, hazai, vendeg, kickoff_utc, hazai_rov, vendeg_rov, eredmeny_hazai, eredmeny_vendeg "
+        "FROM matches WHERE csoport IN ('R32','R16','QF','SF','3rd','F') ORDER BY kickoff_utc"
+    ).fetchall()
+
+
+def osszes_tipp_meccsre(conn, match_id: int):
+    """Egy meccsre az összes aktív user tippje: user_id -> (th, tv)."""
+    rows = conn.execute(
+        "SELECT p.user_id, p.tipp_hazai, p.tipp_vendeg FROM predictions p "
+        "JOIN users u ON u.id=p.user_id WHERE p.match_id=? AND u.aktiv=1",
+        (match_id,),
+    ).fetchall()
+    return {r[0]: (r[1], r[2]) for r in rows}
+
+
+def aktiv_userek_pontokkal(conn):
+    """Aktív userek listája (id, nev, ossz_pont), pont szerint csökkenőben."""
+    rangsor = ranglista(conn)  # nev -> pont, de nekünk id is kell
+    # ranglista nevet ad; itt id+nev+pont kell, ezért külön számoljuk
+    users = conn.execute("SELECT id, nev FROM users WHERE aktiv=1").fetchall()
+    eredmeny = []
+    for uid, nev in users:
+        mp = conn.execute("SELECT COALESCE(SUM(pont),0) FROM points WHERE user_id=?", (uid,)).fetchone()[0]
+        eredmeny.append({"id": uid, "nev": nev, "pont": mp})
+    eredmeny.sort(key=lambda x: x["pont"], reverse=True)
+    return eredmeny
+
+
+def osszes_bonusz(conn):
+    """Aktív userek bónusz-tippjei: user_id -> (vilagbajnok, golkiraly)."""
+    rows = conn.execute(
+        "SELECT b.user_id, b.vilagbajnok, b.golkiraly FROM bonus_predictions b "
+        "JOIN users u ON u.id=b.user_id WHERE u.aktiv=1",
+    ).fetchall()
+    return {r[0]: (r[1], r[2]) for r in rows}
