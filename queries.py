@@ -422,3 +422,18 @@ def ranglista_reszletes(conn):
 
     eredmeny.sort(key=lambda x: x["ossz"], reverse=True)
     return eredmeny
+
+
+def bonusz_allapot(conn):
+    """Kik adták le a TELJES bónusz-tippet (világbajnok ÉS gólkirály) és kik nem."""
+    aktiv = conn.execute("SELECT id, nev FROM users WHERE aktiv=1 ORDER BY nev").fetchall()
+    teljes = set()
+    rows = conn.execute(
+        "SELECT user_id, vilagbajnok, golkiraly FROM bonus_predictions"
+    ).fetchall()
+    for uid, vb, gk in rows:
+        if vb and vb.strip() and gk and gk.strip():
+            teljes.add(uid)
+    megvan = [nev for uid, nev in aktiv if uid in teljes]
+    hianyzik = [nev for uid, nev in aktiv if uid not in teljes]
+    return megvan, hianyzik

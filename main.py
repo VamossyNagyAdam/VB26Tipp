@@ -724,9 +724,19 @@ def admin_tippelesek(request: Request, kulcs: str = ""):
     if not sorok:
         sorok = '<p class="pill">Nincs nyitott meccs, amire még tippelni lehetne.</p>'
 
+    # bónusz-tipp állapota (csak teljes = világbajnok ÉS gólkirály számít)
+    b_megvan, b_hianyzik = queries.bonusz_allapot(conn)
+    b_arany = f"{len(b_megvan)}/{aktiv_szam}"
+    b_szin = "var(--accent)" if not b_hianyzik else "var(--accent2)"
+    b_hianyzik_txt = ", ".join(b_hianyzik) if b_hianyzik else "mindenki leadta ✓"
+    bonusz_kartya = f"""<div class="card"><h2 style="font-size:1.05rem;margin-bottom:8px">Bónusz-tipp</h2>
+    <p style="margin:0">Leadta: <b style="color:{b_szin}">{b_arany}</b> · hiányzik: {b_hianyzik_txt}</p>
+    <p class="pill" style="margin-top:6px">Teljes = világbajnok és gólkirály is megadva.</p></div>"""
+
     body = f"""<h1>Tippelési állapot</h1>
     <p class="sub">Ki tippelt már a közelgő meccsekre. (A tippek tartalma itt nem látszik.)
     <a href="/admin?kulcs={kulcs}" style="color:var(--accent)">← Vissza az adminhoz</a></p>
+    {bonusz_kartya}
     {sorok}"""
     return T.page("Tippelési állapot", body)
 
