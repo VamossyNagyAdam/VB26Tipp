@@ -415,11 +415,11 @@ def elo_tippek(request: Request, fazis: str = "1"):
         zart = most >= ko
         meccs_lezart.append((mid, zart, hrov, vrov, eh, ev))
         cimke = f"{hrov or hazai[:3]}–{vrov or vendeg[:3]}"
+        # a meccs NEVE mindig látszik (nem titok); csak a tippek rejtve a kickoff előtt
         if zart:
             fejlec += f'<th title="{hazai} – {vendeg}">{cimke}</th>'
         else:
-            # jövőbeli: csak egy vonal, a tippek rejtve (csalás-biztos)
-            fejlec += '<th style="color:var(--muted)">—</th>'
+            fejlec += f'<th title="{hazai} – {vendeg}" style="color:var(--muted)">{cimke}</th>'
 
     # sorok: userenként
     sorok = ""
