@@ -424,34 +424,47 @@ def elo_tippek(request: Request, fazis: str = "1"):
     valaszto += "</select>"
 
     meccsek = queries.meccsek_fordulora(conn, fazis)
-    userek = queries.aktiv_userek_pontokkal(conn)
+    userek = queries.aktiv_userek_pontokkal(conn)  # már pont szerint csökkenőben
 
-    # fejléc: meccsek (rövidítéssel). Lezárt meccs -> tipp látszik; jövőbeli -> csak vonal.
-    fejlec = '<th>Játékos</th><th>Pont</th>'
-    meccs_lezart = []  # (mid, lezart?)
+    # fejléc: meccsek rövidítéssel + lement meccs végeredménye
+    fejlec = '<th>#</th><th>Játékos</th><th>Pont</th>'
+    meccs_lezart = []  # (mid, zart, eh, ev)
     for m in meccsek:
         mid, hazai, vendeg, ko, hrov, vrov, eh, ev = m
         zart = most >= ko
-        meccs_lezart.append((mid, zart, hrov, vrov, eh, ev))
+        meccs_lezart.append((mid, zart, eh, ev))
         cimke = f"{hrov or hazai[:3]}–{vrov or vendeg[:3]}"
-        # a meccs NEVE mindig látszik (nem titok); csak a tippek rejtve a kickoff előtt
+        # lement meccs végeredménye a fejlécbe (ha már rögzítve)
+        eredmeny_txt = ""
+        if eh is not None:
+            eredmeny_txt = f'<br><span class="result">{eh}–{ev}</span>'
         if zart:
-            fejlec += f'<th title="{hazai} – {vendeg}">{cimke}</th>'
+            fejlec += f'<th title="{hazai} – {vendeg}">{cimke}{eredmeny_txt}</th>'
         else:
             fejlec += f'<th title="{hazai} – {vendeg}" style="color:var(--muted)">{cimke}</th>'
 
-    # sorok: userenként
+    # sorok: userenként, pont szerint (helyezés-számmal)
     sorok = ""
-    for u in userek:
+    for i, u in enumerate(userek, 1):
         cellak = ""
         tippek_u = queries.sajat_tippek(conn, u["id"])
-        for mid, zart, hrov, vrov, eh, ev in meccs_lezart:
+        pontok_u = queries.sajat_pontok(conn, u["id"])
+        for mid, zart, eh, ev in meccs_lezart:
             if not zart:
                 cellak += '<td style="color:var(--muted)">—</td>'
             else:
                 t = tippek_u.get(mid)
-                cellak += f'<td>{t[0]}:{t[1]}</td>' if t else '<td class="pill">–</td>'
-        sorok += f'<tr><td><b>{u["nev"]}</b></td><td>{u["pont"]}</td>{cellak}</tr>'
+                if not t:
+                    cellak += '<td class="pill">–</td>'
+                else:
+                    # tipp + a kapott pont (ha már kiosztva), színezve
+                    pont_jel = ""
+                    if mid in pontok_u:
+                        p = pontok_u[mid]
+                        cls = "pt3" if p == 3 else ("pt12" if p in (1, 2) else "pt0")
+                        pont_jel = f'<br><span class="ptbadge {cls}" style="padding:2px 6px;font-size:.72rem">{p}</span>'
+                    cellak += f'<td>{t[0]}:{t[1]}{pont_jel}</td>'
+        sorok += f'<tr><td>{i}.</td><td><b>{u["nev"]}</b></td><td><b>{u["pont"]}</b></td>{cellak}</tr>'
 
     # bónusz-szekció: csak a torna kezdete után látható
     elso = conn.execute("SELECT kickoff_utc FROM matches ORDER BY kickoff_utc LIMIT 1").fetchone()

@@ -58,7 +58,7 @@ def round_to_csoport(m: dict) -> str:
         "Quarter-final": "QF",
         "Semi-final": "SF",
         "Match for third place": "3rd",
-        "Final": "F",
+        "Final": "FIN",
     }.get(r, r)
 
 

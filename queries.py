@@ -53,7 +53,7 @@ def meccsek_listaja(conn, csak_csoportkor=False):
     """Összes meccs, kickoff szerint rendezve. csak_csoportkor: a kieséses meccsek kihagyása."""
     szures = ""
     if csak_csoportkor:
-        szures = "WHERE csoport NOT IN ('R32','R16','QF','SF','3rd','F') "
+        szures = "WHERE csoport NOT IN ('R32','R16','QF','SF','3rd','FIN') "
     return conn.execute(
         "SELECT id, csoport, hazai, vendeg, kickoff_utc, "
         "eredmeny_hazai, eredmeny_vendeg, matchday, hazai_rov, vendeg_rov "
@@ -306,7 +306,7 @@ def meccsek_fordulora(conn, fazis: str):
     # kieséses
     return conn.execute(
         "SELECT id, hazai, vendeg, kickoff_utc, hazai_rov, vendeg_rov, eredmeny_hazai, eredmeny_vendeg "
-        "FROM matches WHERE csoport IN ('R32','R16','QF','SF','3rd','F') ORDER BY kickoff_utc"
+        "FROM matches WHERE csoport IN ('R32','R16','QF','SF','3rd','FIN') ORDER BY kickoff_utc"
     ).fetchall()
 
 
@@ -361,7 +361,7 @@ def kieseses_indult(conn):
     """Igaz, ha már elkezdődött (vagy lement) legalább egy kieséses meccs."""
     most = now_utc_iso()
     row = conn.execute(
-        "SELECT COUNT(*) FROM matches WHERE csoport IN ('R32','R16','QF','SF','3rd','F') "
+        "SELECT COUNT(*) FROM matches WHERE csoport IN ('R32','R16','QF','SF','3rd','FIN') "
         "AND kickoff_utc <= ?",
         (most,),
     ).fetchone()
@@ -399,7 +399,7 @@ def ranglista_reszletes(conn):
         # kieséses meccspontok
         kieses = conn.execute(
             "SELECT COALESCE(SUM(p.pont),0) FROM points p JOIN matches m ON m.id=p.match_id "
-            "WHERE p.user_id=? AND m.csoport IN ('R32','R16','QF','SF','3rd','F')",
+            "WHERE p.user_id=? AND m.csoport IN ('R32','R16','QF','SF','3rd','FIN')",
             (uid,),
         ).fetchone()[0]
 
