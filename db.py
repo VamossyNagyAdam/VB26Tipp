@@ -60,7 +60,9 @@ CREATE TABLE IF NOT EXISTS matches (
     eredmeny_forras TEXT,               -- 'kezi' | 'auto' | NULL (ha nincs eredmény)
     matchday INTEGER,                   -- forduló a csoportkörben (1,2,3); kieséses: NULL
     hazai_rov TEXT,                     -- hazai csapat rövidítése (pl. 'ENG')
-    vendeg_rov TEXT                     -- vendég csapat rövidítése (pl. 'MEX')
+    vendeg_rov TEXT,                    -- vendég csapat rövidítése (pl. 'MEX')
+    hazai_zaszlo TEXT,                  -- hazai csapat zászló/címer URL
+    vendeg_zaszlo TEXT                  -- vendég csapat zászló/címer URL
 );
 
 CREATE TABLE IF NOT EXISTS predictions (
@@ -144,6 +146,12 @@ def _migracio(conn):
         conn.commit()
     if "vendeg_rov" not in m_oszlopok:
         conn.execute("ALTER TABLE matches ADD COLUMN vendeg_rov TEXT")
+        conn.commit()
+    if "hazai_zaszlo" not in m_oszlopok:
+        conn.execute("ALTER TABLE matches ADD COLUMN hazai_zaszlo TEXT")
+        conn.commit()
+    if "vendeg_zaszlo" not in m_oszlopok:
+        conn.execute("ALTER TABLE matches ADD COLUMN vendeg_zaszlo TEXT")
         conn.commit()
 
 

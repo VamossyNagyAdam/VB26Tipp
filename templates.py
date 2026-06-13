@@ -34,13 +34,24 @@ h1{font-size:1.6rem;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
 .match .grp{background:var(--panel2);color:var(--accent);font-weight:700;
   border-radius:8px;padding:4px 10px;font-size:.8rem;min-width:44px;text-align:center}
 .match .teams{flex:1;min-width:200px;font-weight:600}
-.match .ko{color:var(--muted);font-size:.85rem;width:100%;margin-top:4px}
-.match.closed{opacity:.55}
-.score-in{width:46px;padding:8px;text-align:center;background:var(--bg);
-  border:1px solid var(--line);border-radius:8px;color:var(--ink);font-size:1rem;font-weight:700}
+.match .ko{color:var(--muted);font-size:.85rem;width:100%;margin-top:4px;
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.match.closed{opacity:.85}
+/* bal oldali jelző-blokk: csoportbetű + két zászló-kör */
+.mleft{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.flag{width:26px;height:26px;border-radius:50%;object-fit:cover;
+  border:1.5px solid var(--line);background:var(--panel2);flex-shrink:0}
+.flagpair{display:flex;align-items:center}
+.flagpair .flag:last-child{margin-left:-8px}  /* enyhe átfedés, igényes */
+/* kisebb, arányos eredmény-mező (a szám kb. 2x helyet kap) */
+.score-in{width:40px;height:40px;padding:0;text-align:center;background:var(--bg);
+  border:1px solid var(--line);border-radius:9px;color:var(--ink);font-size:1.05rem;font-weight:800}
+.score-sm{width:36px;height:36px;padding:0;text-align:center;background:var(--bg);
+  border:1px solid var(--line);border-radius:8px;color:var(--ink);font-size:1rem;font-weight:800}
+/* a tipp-bevitel blokk: fix szélességű gomb-hely, hogy a div ne ugráljon */
+.tipbox{display:flex;gap:6px;align-items:center;flex-shrink:0}
+.tipbox .savecell{width:64px;display:flex;justify-content:center}
 /* kisebb mezők a tippeléshez, hogy mobilon is elférjenek egymás mellett */
-.score-sm{width:38px;padding:6px 4px;text-align:center;background:var(--bg);
-  border:1px solid var(--line);border-radius:7px;color:var(--ink);font-size:.95rem;font-weight:700}
 /* forduló-elválasztó (a nap-elválasztótól elütő, hangsúlyosabb) */
 .roundsep{display:flex;align-items:center;gap:12px;margin:30px 2px 8px}
 .roundsep .rlabel{background:var(--accent);color:#06231a;font-weight:800;
@@ -76,7 +87,8 @@ select.sel{padding:11px 13px;background:var(--bg);border:1px solid var(--line);
 /* tippelt meccs: szürkébb háttér */
 .match.tipped{background:var(--panel2);border-color:#333d5c}
 /* lement meccs pont-színezése */
-.ptbadge{font-weight:800;border-radius:8px;padding:4px 11px;font-size:.85rem;margin-left:8px}
+.ptbadge{font-weight:800;border-radius:8px;padding:4px 11px;font-size:.85rem;margin-left:8px;
+  display:inline-block;white-space:nowrap}
 .pt3{background:rgba(0,229,160,.15);color:var(--accent);border:1px solid rgba(0,229,160,.4)}
 .pt12{background:rgba(255,184,0,.15);color:var(--accent2);border:1px solid rgba(255,184,0,.4)}
 .pt0{background:rgba(255,84,112,.15);color:var(--danger);border:1px solid rgba(255,84,112,.4)}

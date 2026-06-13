@@ -33,14 +33,17 @@ def betolt(conn, token):
         matchday = m.get("matchday") if stage == "GROUP_STAGE" else None
         hazai_rov = (m.get("homeTeam") or {}).get("tla")
         vendeg_rov = (m.get("awayTeam") or {}).get("tla")
+        hazai_zaszlo = (m.get("homeTeam") or {}).get("crest")
+        vendeg_zaszlo = (m.get("awayTeam") or {}).get("crest")
 
         row = conn.execute("SELECT id FROM matches WHERE fd_id=?", (fd_id,)).fetchone()
         if not row:
             nincs_par += 1
             continue
         conn.execute(
-            "UPDATE matches SET matchday=?, hazai_rov=?, vendeg_rov=? WHERE id=?",
-            (matchday, hazai_rov, vendeg_rov, row[0]),
+            "UPDATE matches SET matchday=?, hazai_rov=?, vendeg_rov=?, "
+            "hazai_zaszlo=?, vendeg_zaszlo=? WHERE id=?",
+            (matchday, hazai_rov, vendeg_rov, hazai_zaszlo, vendeg_zaszlo, row[0]),
         )
         frissitve += 1
 

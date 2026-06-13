@@ -154,7 +154,7 @@ def fooldal(request: Request, uzenet: str = ""):
     aktualis_fordulo = None
     van_nyitott = False  # van-e még tippelhető meccs (a Mindet ment gombhoz)
     for m in meccsek:
-        mid, grp, hazai, vendeg, ko, eh, ev, matchday, hrov, vrov = m
+        mid, grp, hazai, vendeg, ko, eh, ev, matchday, hrov, vrov, hzaszlo, vzaszlo = m
 
         # forduló-elválasztó (a csoportkör 1/2/3. fordulója)
         if matchday and matchday != aktualis_fordulo:
@@ -172,6 +172,12 @@ def fooldal(request: Request, uzenet: str = ""):
         # csapatnevek rövidítéssel (ha van)
         h_disp = f"{hazai} ({hrov})" if hrov else hazai
         v_disp = f"{vendeg} ({vrov})" if vrov else vendeg
+
+        # bal oldali blokk: csoportbetű + két zászló-kör
+        zaszlo_h = f'<img class="flag" src="{hzaszlo}" alt="" loading="lazy">' if hzaszlo else '<span class="flag"></span>'
+        zaszlo_v = f'<img class="flag" src="{vzaszlo}" alt="" loading="lazy">' if vzaszlo else '<span class="flag"></span>'
+        mleft = (f'<div class="mleft"><div class="grp">{grp}</div>'
+                 f'<div class="flagpair">{zaszlo_h}{zaszlo_v}</div></div>')
 
         zart = most >= ko
         th, tv = tippek.get(mid, ("", ""))
@@ -196,23 +202,24 @@ def fooldal(request: Request, uzenet: str = ""):
                 cls = "pt3" if p == 3 else ("pt12" if p in (1, 2) else "pt0")
                 pont_badge = f'<span class="ptbadge {cls}">{p} pont</span>'
             tipp_str = f'{th}:{tv}' if van_tipp else '–'
-            sorok += f"""<div class="match closed{tipped_cls}"><div class="grp">{grp}</div>
+            sorok += f"""<div class="match closed{tipped_cls}">{mleft}
             <div class="teams">{h_disp} – {v_disp} {eredmeny}{pont_badge}
             <div class="ko">{ko_ido(ko)} · {allapot} · tipped: {tipp_str}</div></div></div>"""
         else:
             van_nyitott = True
-            # a beviteli mezők a közös formhoz tartoznak (th_{mid}, tv_{mid}),
-            # a Ment gomb alapból rejtett, JS fedi fel módosításkor (data-mid jelöli a meccset)
-            sorok += f"""<div class="match{tipped_cls}" data-mid="{mid}"><div class="grp">{grp}</div>
+            # a beviteli mezők a közös formhoz tartoznak; a gomb-cella fix szélességű,
+            # hogy a Ment gomb megjelenésekor a sor ne ugráljon
+            sorok += f"""<div class="match{tipped_cls}" data-mid="{mid}">{mleft}
             <div class="teams">{h_disp} – {v_disp}<div class="ko">{ko_ido(ko)} · {allapot}</div></div>
-            <div style="display:flex;gap:6px;align-items:center">
+            <div class="tipbox">
             <input class="score-sm" type="number" min="0" name="th_{mid}" value="{th}" form="tippform"
             data-mid="{mid}" data-init="{th}">
             <span>:</span>
             <input class="score-sm" type="number" min="0" name="tv_{mid}" value="{tv}" form="tippform"
             data-mid="{mid}" data-init="{tv}">
-            <button class="btn small" type="submit" form="tippform"
-            formaction="/tipp" name="egy_meccs" value="{mid}" data-save-mid="{mid}">Ment</button></div></div>"""
+            <div class="savecell"><button class="btn small" type="submit" form="tippform"
+            formaction="/tipp" name="egy_meccs" value="{mid}" data-save-mid="{mid}">Ment</button></div>
+            </div></div>"""
 
     # az egész lista egy közös formba van csomagolva (Mindet ment)
     mindet_gomb = ""
@@ -384,7 +391,9 @@ def ranglista_oldal(request: Request):
     <p style="margin-bottom:10px">Minden mérkőzésre a <b>kezdőrúgás előtt</b> tippelsz: beírod, hány gólt lősz a két csapatnak. A meccs kezdete után a tipped már nem módosítható, úgyhogy érdemes időben leadni. Aki nem tippel egy meccsre, arra <b>0 pontot</b> kap.</p>
     <p style="margin-bottom:10px">A pontokat a lenti táblázat szerint gyűjtöd: minél pontosabb a tipped, annál többet ér. A tippeket a <b>rendes játékidő</b> (90 perc + hosszabbítás nélkül) eredményéhez mérjük – tehát ha egy meccs hosszabbításban vagy tizenegyesekkel dől el, az nem számít, csak a 90 perc utáni állás.</p>
     <p style="margin-bottom:10px">A torna kezdete előtt két <b>bónusz-tippet</b> is leadhatsz a főoldal tetején: ki lesz a <b>világbajnok</b> és ki lesz a <b>gólkirály</b>. Ezeket a torna első meccsének kezdetéig módosíthatod, utána véglegesek. A bónuszpontok a torna végén kerülnek jóváírásra.</p>
-    <p style="margin-bottom:0">A ranglista a meccspontok és a bónuszpontok összegét mutatja. A legtöbb pontot gyűjtő nyeri a ligát. Sok sikert!</p></div>
+    <p style="margin-bottom:10px">A ranglista a meccspontok és a bónuszpontok összegét mutatja. A legtöbb pontot gyűjtő nyeri a ligát. Sok sikert!</p>
+    <p style="margin-bottom:6px"><b>A nyeremény elosztása a torna végén:</b></p>
+    <p style="margin-bottom:0">🥇 1. helyezett: a kassza <b>60%-a</b> · 🥈 2. helyezett: <b>30%</b> · 🥉 3. helyezett: <b>10%</b></p></div>
     <div class="card"><h2 style="font-size:1.05rem;margin-bottom:12px">Pontozás</h2>
     <table><tbody>
     <tr><td><span class="ptbadge pt3">3</span></td><td>Pontos eredmény (a döntetlené is)</td></tr>
@@ -455,15 +464,15 @@ def elo_tippek(request: Request, fazis: str = "1"):
             else:
                 t = tippek_u.get(mid)
                 if not t:
-                    cellak += '<td class="pill">–</td>'
+                    cellak += '<td class="pill" style="text-align:center">–</td>'
                 else:
-                    # tipp + a kapott pont (ha már kiosztva), színezve
+                    # tipp + a kapott pont egymás alatt, középre
                     pont_jel = ""
                     if mid in pontok_u:
                         p = pontok_u[mid]
                         cls = "pt3" if p == 3 else ("pt12" if p in (1, 2) else "pt0")
-                        pont_jel = f'<br><span class="ptbadge {cls}" style="padding:2px 6px;font-size:.72rem">{p}</span>'
-                    cellak += f'<td>{t[0]}:{t[1]}{pont_jel}</td>'
+                        pont_jel = f'<div style="margin-top:3px"><span class="ptbadge {cls}" style="margin:0;padding:2px 7px;font-size:.72rem">{p}</span></div>'
+                    cellak += f'<td style="text-align:center"><div>{t[0]}:{t[1]}</div>{pont_jel}</td>'
         sorok += f'<tr><td>{i}.</td><td><b>{u["nev"]}</b></td><td><b>{u["pont"]}</b></td>{cellak}</tr>'
 
     # bónusz-szekció: csak a torna kezdete után látható
@@ -559,7 +568,7 @@ def admin_oldal(request: Request, kulcs: str = "", uzenet: str = "", hiba: str =
     meccs_sorok = ""
     aktualis_nap = None
     for m in queries.meccsek_listaja(conn):
-        mid, grp, hazai, vendeg, ko, eh, ev, matchday, hrov, vrov = m
+        mid, grp, hazai, vendeg, ko, eh, ev, matchday, hrov, vrov, hzaszlo, vzaszlo = m
         nk = nap_kulcs(ko)
         if nk != aktualis_nap:
             aktualis_nap = nk
@@ -717,7 +726,7 @@ def admin_tippelesek(request: Request, kulcs: str = ""):
     sorok = ""
     aktualis_nap = None
     for m in queries.meccsek_listaja(conn, csak_csoportkor=False):
-        mid, grp, hazai, vendeg, ko, eh, ev, matchday, hrov, vrov = m
+        mid, grp, hazai, vendeg, ko, eh, ev, matchday, hrov, vrov, hzaszlo, vzaszlo = m
         if most >= ko:
             continue  # lezárt meccs: már nincs értelme sürgetni
         megvan, hianyzik = queries.tippelesi_allapot(conn, mid)

@@ -56,7 +56,8 @@ def meccsek_listaja(conn, csak_csoportkor=False):
         szures = "WHERE csoport NOT IN ('R32','R16','QF','SF','3rd','FIN') "
     return conn.execute(
         "SELECT id, csoport, hazai, vendeg, kickoff_utc, "
-        "eredmeny_hazai, eredmeny_vendeg, matchday, hazai_rov, vendeg_rov "
+        "eredmeny_hazai, eredmeny_vendeg, matchday, hazai_rov, vendeg_rov, "
+        "hazai_zaszlo, vendeg_zaszlo "
         f"FROM matches {szures}ORDER BY kickoff_utc"
     ).fetchall()
 
