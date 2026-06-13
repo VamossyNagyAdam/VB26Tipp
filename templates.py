@@ -52,6 +52,11 @@ h1{font-size:1.6rem;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
   transition:border-color .15s,box-shadow .15s}
 .score-in:focus,.score-sm:focus{outline:none;border-color:var(--accent);
   box-shadow:0 0 0 3px rgba(0,229,160,.18)}
+/* a fel/le spinner-nyilak elrejtése, hogy a szám középen legyen */
+.score-in::-webkit-inner-spin-button,.score-in::-webkit-outer-spin-button,
+.score-sm::-webkit-inner-spin-button,.score-sm::-webkit-outer-spin-button{
+  -webkit-appearance:none;margin:0}
+.score-in,.score-sm{-moz-appearance:textfield;appearance:textfield}
 /* a tipp-bevitel blokk: fix szélességű gomb-hely, hogy a div ne ugráljon */
 .tipbox{display:flex;gap:8px;align-items:center;flex-shrink:0}
 .tipbox>span{font-size:1.2rem;font-weight:700;color:var(--muted)}
