@@ -44,12 +44,17 @@ h1{font-size:1.6rem;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
 .flagpair{display:flex;align-items:center}
 .flagpair .flag:last-child{margin-left:-8px}  /* enyhe átfedés, igényes */
 /* kisebb, arányos eredmény-mező (a szám kb. 2x helyet kap) */
-.score-in{width:40px !important;height:40px;padding:0 !important;text-align:center;background:var(--bg);
-  border:1px solid var(--line);border-radius:9px;color:var(--ink);font-size:1.05rem;font-weight:800;margin-top:0 !important}
-.score-sm{width:36px !important;height:36px;padding:0 !important;text-align:center;background:var(--bg);
-  border:1px solid var(--line);border-radius:8px;color:var(--ink);font-size:1rem;font-weight:800;margin-top:0 !important}
+.score-in{width:52px !important;height:52px;padding:0 !important;text-align:center;background:var(--bg);
+  border:1.5px solid var(--line);border-radius:12px;color:var(--ink);font-size:1.25rem;font-weight:800;margin-top:0 !important;
+  transition:border-color .15s,box-shadow .15s}
+.score-sm{width:50px !important;height:50px;padding:0 !important;text-align:center;background:var(--bg);
+  border:1.5px solid var(--line);border-radius:12px;color:var(--ink);font-size:1.25rem;font-weight:800;margin-top:0 !important;
+  transition:border-color .15s,box-shadow .15s}
+.score-in:focus,.score-sm:focus{outline:none;border-color:var(--accent);
+  box-shadow:0 0 0 3px rgba(0,229,160,.18)}
 /* a tipp-bevitel blokk: fix szélességű gomb-hely, hogy a div ne ugráljon */
-.tipbox{display:flex;gap:6px;align-items:center;flex-shrink:0}
+.tipbox{display:flex;gap:8px;align-items:center;flex-shrink:0}
+.tipbox>span{font-size:1.2rem;font-weight:700;color:var(--muted)}
 .tipbox .savecell{width:64px;display:flex;justify-content:center}
 /* kisebb mezők a tippeléshez, hogy mobilon is elférjenek egymás mellett */
 /* forduló-elválasztó (a nap-elválasztótól elütő, hangsúlyosabb) */
