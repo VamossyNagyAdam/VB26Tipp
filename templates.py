@@ -44,10 +44,10 @@ h1{font-size:1.6rem;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
 .flagpair{display:flex;align-items:center}
 .flagpair .flag:last-child{margin-left:-8px}  /* enyhe átfedés, igényes */
 /* kisebb, arányos eredmény-mező (a szám kb. 2x helyet kap) */
-.score-in{width:40px;height:40px;padding:0;text-align:center;background:var(--bg);
-  border:1px solid var(--line);border-radius:9px;color:var(--ink);font-size:1.05rem;font-weight:800}
-.score-sm{width:36px;height:36px;padding:0;text-align:center;background:var(--bg);
-  border:1px solid var(--line);border-radius:8px;color:var(--ink);font-size:1rem;font-weight:800}
+.score-in{width:40px !important;height:40px;padding:0 !important;text-align:center;background:var(--bg);
+  border:1px solid var(--line);border-radius:9px;color:var(--ink);font-size:1.05rem;font-weight:800;margin-top:0 !important}
+.score-sm{width:36px !important;height:36px;padding:0 !important;text-align:center;background:var(--bg);
+  border:1px solid var(--line);border-radius:8px;color:var(--ink);font-size:1rem;font-weight:800;margin-top:0 !important}
 /* a tipp-bevitel blokk: fix szélességű gomb-hely, hogy a div ne ugráljon */
 .tipbox{display:flex;gap:6px;align-items:center;flex-shrink:0}
 .tipbox .savecell{width:64px;display:flex;justify-content:center}
