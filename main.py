@@ -104,7 +104,7 @@ def kilepes():
 # ---------- Tippek (főoldal) ----------
 
 @app.get("/", response_class=HTMLResponse)
-def fooldal(request: Request, uzenet: str = ""):
+def fooldal(request: Request, uzenet: str = "", fazis: str = ""):
     conn = db.kapcsolat()
     user = aktualis_user(request, conn)
     if not user:
@@ -147,26 +147,47 @@ def fooldal(request: Request, uzenet: str = ""):
         <button class="btn" type="submit" data-bonusz-save>Mentés</button></form>
         <div class="lead" style="margin-top:12px;margin-bottom:0">Nem találod a játékost a listában? Szólj a szervezőnek, és felveszi.</div></div>"""
 
-    # --- Meccsek: csak csoportkör, fordulókra és napokra bontva ---
-    meccsek = queries.meccsek_listaja(conn, csak_csoportkor=True)
+    # --- Fázis-választó: 1/2/3 forduló, vagy 'ko' (ha van kész kieséses párosítás) ---
+    van_ko = queries.van_kieseses_parositas(conn)
+    if fazis not in ("1", "2", "3", "ko"):
+        fazis = "1"
+    if fazis == "ko" and not van_ko:
+        fazis = "1"  # nincs még kieséses párosítás -> vissza az 1. fordulóra
+
+    # legördülő opciók
+    opciok = [("1", "1. forduló"), ("2", "2. forduló"), ("3", "3. forduló")]
+    if van_ko:
+        opciok.append(("ko", "Egyenes kiesés"))
+    valaszto = '<select class="sel" onchange="location.href=\'/?fazis=\'+this.value" style="max-width:200px;margin-bottom:6px">'
+    for ertek, cimke in opciok:
+        sel = " selected" if ertek == fazis else ""
+        valaszto += f'<option value="{ertek}"{sel}>{cimke}</option>'
+    valaszto += "</select>"
+
+    # a megfelelő meccsek a fázishoz
+    if fazis == "ko":
+        meccsek = queries.kieseses_kesz_meccsek(conn)
+    else:
+        meccsek = [m for m in queries.meccsek_listaja(conn, csak_csoportkor=True)
+                   if m[7] == int(fazis)]  # m[7] = matchday
+
     sorok = ""
     aktualis_nap = None
-    aktualis_fordulo = None
     van_nyitott = False  # van-e még tippelhető meccs (a Mindet ment gombhoz)
+    ma = queries.now_utc_iso()[:10]
+    horgony_kell = True  # az első mai/jövőbeli naphoz teszünk egy horgonyt
     for m in meccsek:
         mid, grp, hazai, vendeg, ko, eh, ev, matchday, hrov, vrov, hzaszlo, vzaszlo = m
-
-        # forduló-elválasztó (a csoportkör 1/2/3. fordulója)
-        if matchday and matchday != aktualis_fordulo:
-            aktualis_fordulo = matchday
-            aktualis_nap = None  # új fordulóban újrakezdjük a nap-jelölést
-            sorok += (f'<div class="roundsep"><div class="rlabel">{matchday}. forduló</div>'
-                      f'<div class="rline"></div></div>')
 
         nk = nap_kulcs(ko)
         if nk != aktualis_nap:
             aktualis_nap = nk
-            sorok += (f'<div class="daysep"><div class="dlabel">{nap_cimke(nk)}</div>'
+            # horgony az első olyan napra, ami ma vagy később van
+            horgony = ""
+            if horgony_kell and ko[:10] >= ma:
+                horgony = ' id="ugras"'
+                horgony_kell = False
+            sorok += (f'<div class="daysep"{horgony}><div class="dlabel">{nap_cimke(nk)}</div>'
                       f'<div class="dline"></div></div>')
 
         # csapatnevek rövidítéssel (ha van)
@@ -232,6 +253,9 @@ def fooldal(request: Request, uzenet: str = ""):
     # HA A JS NEM FUT LE, a gombok láthatóak maradnak -> a mentés mindig elérhető.
     js = """<script>
 (function(){
+  // automatikus görgetés a mai/legközelebbi meccsekhez (ha van ilyen)
+  var cel = document.getElementById('ugras');
+  if(cel){ cel.scrollIntoView({behavior:'instant', block:'start'}); }
   var modositott = {};
   // induláskor minden mentő gombot elrejtünk (csak ha a JS fut)
   document.querySelectorAll('button[data-save-mid]').forEach(function(g){ g.style.display='none'; });
@@ -273,7 +297,7 @@ def fooldal(request: Request, uzenet: str = ""):
 </script>"""
 
     body = f"""<h1>Meccsek</h1>
-    <p class="sub">Tippelj a meccs kezdete előtt. A lezárt meccsek nem módosíthatók.</p>
+    <p class="sub">Tippelj a meccs kezdete előtt. A lezárt meccsek nem módosíthatók. {valaszto}</p>
     {flash}{bonusz_html}
     <form id="tippform" method="post"></form>
     {sorok}{mindet_gomb}{js}"""
@@ -365,12 +389,28 @@ def ranglista_oldal(request: Request):
     reszletes = queries.ranglista_reszletes(conn)
     ko_fazis = queries.kieseses_indult(conn)
 
+    # holtverseny-helyezés (1224 stílus): azonos pont = azonos hely,
+    # a következő hely ennyivel ugrik. Érem csak az 1/2/3. helyezési SZÁMHOZ.
+    def helyezes_es_erem(idx, lista):
+        # idx: 0-alapú sorindex; a hely a megelőző, magasabb pontúak száma + 1
+        pont = lista[idx]["ossz"]
+        hely = 1 + sum(1 for x in lista if x["ossz"] > pont)
+        erem = ""
+        if hely == 1:
+            erem = '<span class="medal gold" title="Arany">🥇</span>'
+        elif hely == 2:
+            erem = '<span class="medal silver" title="Ezüst">🥈</span>'
+        elif hely == 3:
+            erem = '<span class="medal bronze" title="Bronz">🥉</span>'
+        return hely, erem
+
     if ko_fazis:
         # kieséses szakasz: Csoportkör / Kieséses / Bónusz / Összes
         fejlec = ('<th>#</th><th>Név</th><th>Csoportkör</th>'
                   '<th>Kieséses</th><th>Bónusz</th><th>Összesen</th>')
-        for i, s in enumerate(reszletes, 1):
-            sorok += (f'<tr><td>{i}.</td><td>{s["nev"]}</td>'
+        for i, s in enumerate(reszletes):
+            hely, erem = helyezes_es_erem(i, reszletes)
+            sorok += (f'<tr><td>{hely}. {erem}</td><td>{s["nev"]}</td>'
                       f'<td>{s["csoport"]}</td><td>{s["kieses"]}</td>'
                       f'<td>{s["bonusz"]}</td><td><b>{s["ossz"]}</b></td></tr>')
         alcim = "Csoportkör + kieséses + bónuszpontok."
@@ -378,8 +418,9 @@ def ranglista_oldal(request: Request):
         # csoportkör: 1. / 2. / 3. forduló / Összes
         fejlec = ('<th>#</th><th>Név</th><th>1. ford.</th>'
                   '<th>2. ford.</th><th>3. ford.</th><th>Összesen</th>')
-        for i, s in enumerate(reszletes, 1):
-            sorok += (f'<tr><td>{i}.</td><td>{s["nev"]}</td>'
+        for i, s in enumerate(reszletes):
+            hely, erem = helyezes_es_erem(i, reszletes)
+            sorok += (f'<tr><td>{hely}. {erem}</td><td>{s["nev"]}</td>'
                       f'<td>{s["f1"]}</td><td>{s["f2"]}</td><td>{s["f3"]}</td>'
                       f'<td><b>{s["ossz"]}</b></td></tr>')
         alcim = "A csoportkör fordulóinak pontjai. (A bónusz az Összesenben szerepel.)"
@@ -420,19 +461,29 @@ def elo_tippek(request: Request, fazis: str = "1"):
     if not user:
         return RedirectResponse("/belepes", status_code=303)
 
+    van_ko = queries.van_kieseses_parositas(conn)
     if fazis not in ("1", "2", "3", "ko"):
+        fazis = "1"
+    if fazis == "ko" and not van_ko:
         fazis = "1"
     most = queries.now_utc_iso()
 
-    # forduló-választó legördülő
-    opciok = [("1", "1. forduló"), ("2", "2. forduló"), ("3", "3. forduló"), ("ko", "Egyenes kiesés")]
+    # forduló-választó legördülő (kieséses opció csak ha van kész párosítás)
+    opciok = [("1", "1. forduló"), ("2", "2. forduló"), ("3", "3. forduló")]
+    if van_ko:
+        opciok.append(("ko", "Egyenes kiesés"))
     valaszto = '<select class="sel" onchange="location.href=\'/elo-tippek?fazis=\'+this.value" style="max-width:200px">'
     for ertek, cimke in opciok:
         sel = " selected" if ertek == fazis else ""
         valaszto += f'<option value="{ertek}"{sel}>{cimke}</option>'
     valaszto += "</select>"
 
-    meccsek = queries.meccsek_fordulora(conn, fazis)
+    # a fázis meccsei (kiesésesnél csak a kész párosításúak)
+    if fazis == "ko":
+        meccsek = [(r[0], r[2], r[3], r[4], r[8], r[9], r[5], r[6])
+                   for r in queries.kieseses_kesz_meccsek(conn)]
+    else:
+        meccsek = queries.meccsek_fordulora(conn, fazis)
     userek = queries.aktiv_userek_pontokkal(conn)  # már pont szerint csökkenőben
 
     # fejléc: meccsek rövidítéssel + lement meccs végeredménye

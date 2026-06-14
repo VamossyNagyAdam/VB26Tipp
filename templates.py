@@ -73,6 +73,7 @@ h1{font-size:1.6rem;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
 .saveall .btn{width:100%;max-width:340px}
 /* bónusz leadva jelzés */
 .leadva{font-size:.8rem;color:var(--accent);font-weight:700}
+.medal{margin-left:2px;font-size:1rem}
 .btn{background:var(--accent);color:#06231a;border:none;border-radius:10px;
   padding:11px 20px;font-weight:800;cursor:pointer;font-size:.95rem}
 .btn:hover{filter:brightness(1.08)}
@@ -132,6 +133,9 @@ select.sel{padding:11px 13px;background:var(--bg);border:1px solid var(--line);
   /* meccssorok: a beviteli rész törhessen új sorba szűk kijelzőn */
   .match{padding:14px}
   .match form{flex-wrap:wrap}
+  /* ha a tipp-bevitel külön sorba törik, a meccs-infóval egy vonalban kezdődjön
+     (a bal oldali csoport+zászló blokk szélességével behúzva) */
+  .match .tipbox{margin-left:90px}
   .bonusbox .ro{flex-direction:column;gap:14px}
   .bonusbox .ro>div,.bonusbox form>div{width:100%}
 }

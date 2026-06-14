@@ -438,3 +438,46 @@ def bonusz_allapot(conn):
     megvan = [nev for uid, nev in aktiv if uid in teljes]
     hianyzik = [nev for uid, nev in aktiv if uid not in teljes]
     return megvan, hianyzik
+
+
+# ---------- Kieséses párosítások felismerése ----------
+
+import re as _re
+
+def helyorzo_nev(nev: str) -> bool:
+    """Igaz, ha a csapatnév még helyőrző (nincs konkrét párosítás).
+    A football-data.org helyőrzői pl.: 'Winner Group A', 'Runner-up Group B',
+    'Winner Match 73', 'W101', '1A', '2B', '3B/E/F/I/J', 'Third Group D/E/F' stb."""
+    if not nev or not nev.strip():
+        return True
+    n = nev.strip()
+    # tartalmaz tipikus helyőrző-kulcsszavakat?
+    kulcsszavak = ("winner", "runner", "loser", "third", "group", "match")
+    nl = n.lower()
+    if any(k in nl for k in kulcsszavak):
+        return True
+    # 'W101', 'L52' formátum (betű + szám)
+    if _re.fullmatch(r"[WL]\d+", n):
+        return True
+    # '1A', '2B', '3C' vagy '3B/E/F/I/J' (helyezés + csoportbetűk, perjellel)
+    if _re.fullmatch(r"\d[A-L](/[A-L])*", n):
+        return True
+    return False
+
+
+def kieseses_kesz_meccsek(conn):
+    """Azok a kieséses meccsek, ahol MINDKÉT csapat már konkrét (nem helyőrző).
+    Visszaadja a meccsek listáját (mint meccsek_listaja)."""
+    rows = conn.execute(
+        "SELECT id, csoport, hazai, vendeg, kickoff_utc, "
+        "eredmeny_hazai, eredmeny_vendeg, matchday, hazai_rov, vendeg_rov, "
+        "hazai_zaszlo, vendeg_zaszlo "
+        "FROM matches WHERE csoport IN ('R32','R16','QF','SF','3rd','FIN') "
+        "ORDER BY kickoff_utc"
+    ).fetchall()
+    return [r for r in rows if not helyorzo_nev(r[2]) and not helyorzo_nev(r[3])]
+
+
+def van_kieseses_parositas(conn):
+    """Igaz, ha van legalább egy kieséses meccs konkrét párosítással."""
+    return len(kieseses_kesz_meccsek(conn)) > 0
