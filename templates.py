@@ -74,6 +74,8 @@ h1{font-size:1.6rem;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
 /* bónusz leadva jelzés */
 .leadva{font-size:.8rem;color:var(--accent);font-weight:700}
 .medal{margin-left:2px;font-size:1rem}
+.xfade{background:var(--panel2);color:var(--accent2);border-radius:6px;
+  padding:1px 7px;font-size:.72rem;font-weight:700;white-space:nowrap}
 .btn{background:var(--accent);color:#06231a;border:none;border-radius:10px;
   padding:11px 20px;font-weight:800;cursor:pointer;font-size:.95rem}
 .btn:hover{filter:brightness(1.08)}
@@ -119,23 +121,20 @@ select.sel{padding:11px 13px;background:var(--bg);border:1px solid var(--line);
 .bonusbox .locked{font-size:.78rem;color:var(--accent2);font-weight:700;margin-top:6px}
 
 /* Mobil-optimalizálás (~480px alatt) */
-@media (max-width:480px){
+@media (max-width:560px){
   .wrap{padding:16px 12px 60px}
   header.topbar{padding:14px 0;margin-bottom:20px;flex-wrap:wrap;gap:8px}
   .logo{font-size:1.2rem}
   .nav a{margin-left:0;margin-right:14px;font-size:.9rem}
   h1{font-size:1.35rem}
-  .card{padding:16px}
+  .card{padding:16px;overflow-x:auto}
   th,td{padding:9px 8px;font-size:.9rem}
   th{font-size:.7rem}
-  /* a ranglista-táblázat ne lógjon ki: vízszintes görgetés ha kell */
-  .card{overflow-x:auto}
-  /* meccssorok: a beviteli rész törhessen új sorba szűk kijelzőn */
-  .match{padding:14px}
-  .match form{flex-wrap:wrap}
-  /* ha a tipp-bevitel külön sorba törik, a meccs-infóval egy vonalban kezdődjön
-     (a bal oldali csoport+zászló blokk szélességével behúzva) */
-  .match .tipbox{margin-left:90px}
+  /* meccs: a bal blokk + név egy sorban; a beviteli mezők külön sorban,
+     a meccs-infóval egy vonalban kezdődnek (a bal blokk szélességével behúzva) */
+  .match{padding:14px;column-gap:10px}
+  .match .teams{min-width:0;flex:1 1 calc(100% - 110px)}
+  .match .tipbox{margin-left:100px;margin-top:2px}
   .bonusbox .ro{flex-direction:column;gap:14px}
   .bonusbox .ro>div,.bonusbox form>div{width:100%}
 }

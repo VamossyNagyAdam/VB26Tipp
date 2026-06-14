@@ -481,3 +481,53 @@ def kieseses_kesz_meccsek(conn):
 def van_kieseses_parositas(conn):
     """Igaz, ha van legalább egy kieséses meccs konkrét párosítással."""
     return len(kieseses_kesz_meccsek(conn)) > 0
+
+
+def meccsek_fordulora_atfedessel(conn, fordulo: int):
+    """A megadott csoportkör-forduló meccsei, PLUSZ a más fordulóhoz tartozó
+    meccsek, amelyek ugyanazon a napon vannak, mint a forduló valamely napja.
+    Visszaad: lista (meccs_sor, sajat_fordulo_e) párokkal, kickoff szerint."""
+    # a forduló napjai
+    sajat = conn.execute(
+        "SELECT DISTINCT substr(kickoff_utc,1,10) FROM matches "
+        "WHERE matchday=? AND csoport NOT IN ('R32','R16','QF','SF','3rd','FIN')",
+        (fordulo,),
+    ).fetchall()
+    napok = {r[0] for r in sajat}
+    if not napok:
+        return []
+    # minden csoportkörös meccs ezeken a napokon (a sajátok + átlógók)
+    qmarks = ",".join("?" * len(napok))
+    rows = conn.execute(
+        "SELECT id, csoport, hazai, vendeg, kickoff_utc, "
+        "eredmeny_hazai, eredmeny_vendeg, matchday, hazai_rov, vendeg_rov, "
+        "hazai_zaszlo, vendeg_zaszlo "
+        "FROM matches WHERE substr(kickoff_utc,1,10) IN (" + qmarks + ") "
+        "AND csoport NOT IN ('R32','R16','QF','SF','3rd','FIN') "
+        "ORDER BY kickoff_utc",
+        tuple(napok),
+    ).fetchall()
+    return [(r, r[7] == fordulo) for r in rows]
+
+
+def aktualis_fazis(conn, van_ko: bool) -> str:
+    """A belépéskor mutatandó fázis: az a forduló/szakasz, amelyhez a mai vagy
+    legközelebbi jövőbeli meccsnap tartozik. Átfedő napnál a KÉSŐBBI fordulót adja.
+    Ha már nincs jövőbeli csoportmeccs és van kieséses, akkor 'ko'."""
+    ma = now_utc_iso()[:10]
+    # a mai vagy legközelebbi jövőbeli csoportmeccs-nap
+    row = conn.execute(
+        "SELECT substr(kickoff_utc,1,10), MAX(matchday) FROM matches "
+        "WHERE csoport NOT IN ('R32','R16','QF','SF','3rd','FIN') "
+        "AND substr(kickoff_utc,1,10) >= ? "
+        "GROUP BY substr(kickoff_utc,1,10) ORDER BY substr(kickoff_utc,1,10) LIMIT 1",
+        (ma,),
+    ).fetchone()
+    if row and row[1]:
+        # MAX(matchday) az adott napon: átfedésnél a későbbi forduló
+        return str(row[1])
+    # nincs több jövőbeli csoportmeccs
+    if van_ko:
+        return "ko"
+    # minden csoportmeccs lement, nincs kieséses -> az utolsó forduló (3)
+    return "3"

@@ -149,6 +149,9 @@ def fooldal(request: Request, uzenet: str = "", fazis: str = ""):
 
     # --- Fázis-választó: 1/2/3 forduló, vagy 'ko' (ha van kész kieséses párosítás) ---
     van_ko = queries.van_kieseses_parositas(conn)
+    if fazis == "":
+        # belépéskor: az aktuális/legközelebbi naphoz tartozó forduló (átfedésnél a KÉSŐBBI)
+        fazis = queries.aktualis_fazis(conn, van_ko)
     if fazis not in ("1", "2", "3", "ko"):
         fazis = "1"
     if fazis == "ko" and not van_ko:
@@ -166,17 +169,17 @@ def fooldal(request: Request, uzenet: str = "", fazis: str = ""):
 
     # a megfelelő meccsek a fázishoz
     if fazis == "ko":
-        meccsek = queries.kieseses_kesz_meccsek(conn)
+        meccsek = [(m, True) for m in queries.kieseses_kesz_meccsek(conn)]
     else:
-        meccsek = [m for m in queries.meccsek_listaja(conn, csak_csoportkor=True)
-                   if m[7] == int(fazis)]  # m[7] = matchday
+        meccsek = queries.meccsek_fordulora_atfedessel(conn, int(fazis))
 
     sorok = ""
     aktualis_nap = None
     van_nyitott = False  # van-e még tippelhető meccs (a Mindet ment gombhoz)
     ma = queries.now_utc_iso()[:10]
     horgony_kell = True  # az első mai/jövőbeli naphoz teszünk egy horgonyt
-    for m in meccsek:
+    for meccs_par in meccsek:
+        m, sajat_fordulo = meccs_par
         mid, grp, hazai, vendeg, ko, eh, ev, matchday, hrov, vrov, hzaszlo, vzaszlo = m
 
         nk = nap_kulcs(ko)
@@ -189,6 +192,11 @@ def fooldal(request: Request, uzenet: str = "", fazis: str = ""):
                 horgony_kell = False
             sorok += (f'<div class="daysep"{horgony}><div class="dlabel">{nap_cimke(nk)}</div>'
                       f'<div class="dline"></div></div>')
+
+        # átlógó meccs jelzése (más fordulóhoz tartozik, csak a közös nap miatt látszik)
+        atfedes_jel = ""
+        if not sajat_fordulo and matchday:
+            atfedes_jel = f' <span class="xfade">{matchday}. forduló</span>'
 
         # csapatnevek rövidítéssel (ha van)
         h_disp = f"{hazai} ({hrov})" if hrov else hazai
@@ -225,13 +233,13 @@ def fooldal(request: Request, uzenet: str = "", fazis: str = ""):
             tipp_str = f'{th}:{tv}' if van_tipp else '–'
             sorok += f"""<div class="match closed{tipped_cls}">{mleft}
             <div class="teams">{h_disp} – {v_disp} {eredmeny}{pont_badge}
-            <div class="ko">{ko_ido(ko)} · {allapot} · tipped: {tipp_str}</div></div></div>"""
+            <div class="ko">{ko_ido(ko)} · {allapot} · tipped: {tipp_str}{atfedes_jel}</div></div></div>"""
         else:
             van_nyitott = True
             # a beviteli mezők a közös formhoz tartoznak; a gomb-cella fix szélességű,
             # hogy a Ment gomb megjelenésekor a sor ne ugráljon
             sorok += f"""<div class="match{tipped_cls}" data-mid="{mid}">{mleft}
-            <div class="teams">{h_disp} – {v_disp}<div class="ko">{ko_ido(ko)} · {allapot}</div></div>
+            <div class="teams">{h_disp} – {v_disp}<div class="ko">{ko_ido(ko)} · {allapot}{atfedes_jel}</div></div>
             <div class="tipbox">
             <input class="score-sm" type="number" min="0" name="th_{mid}" value="{th}" form="tippform"
             data-mid="{mid}" data-init="{th}">
@@ -395,22 +403,22 @@ def ranglista_oldal(request: Request):
         # idx: 0-alapú sorindex; a hely a megelőző, magasabb pontúak száma + 1
         pont = lista[idx]["ossz"]
         hely = 1 + sum(1 for x in lista if x["ossz"] > pont)
-        erem = ""
+        # top 3: csak az érem-emoji (keskeny oszlop); 4.-től a szám
         if hely == 1:
-            erem = '<span class="medal gold" title="Arany">🥇</span>'
+            return '<span class="medal" title="1. hely">🥇</span>'
         elif hely == 2:
-            erem = '<span class="medal silver" title="Ezüst">🥈</span>'
+            return '<span class="medal" title="2. hely">🥈</span>'
         elif hely == 3:
-            erem = '<span class="medal bronze" title="Bronz">🥉</span>'
-        return hely, erem
+            return '<span class="medal" title="3. hely">🥉</span>'
+        return f"{hely}."
 
     if ko_fazis:
         # kieséses szakasz: Csoportkör / Kieséses / Bónusz / Összes
         fejlec = ('<th>#</th><th>Név</th><th>Csoportkör</th>'
                   '<th>Kieséses</th><th>Bónusz</th><th>Összesen</th>')
         for i, s in enumerate(reszletes):
-            hely, erem = helyezes_es_erem(i, reszletes)
-            sorok += (f'<tr><td>{hely}. {erem}</td><td>{s["nev"]}</td>'
+            jelzes = helyezes_es_erem(i, reszletes)
+            sorok += (f'<tr><td>{jelzes}</td><td>{s["nev"]}</td>'
                       f'<td>{s["csoport"]}</td><td>{s["kieses"]}</td>'
                       f'<td>{s["bonusz"]}</td><td><b>{s["ossz"]}</b></td></tr>')
         alcim = "Csoportkör + kieséses + bónuszpontok."
@@ -419,8 +427,8 @@ def ranglista_oldal(request: Request):
         fejlec = ('<th>#</th><th>Név</th><th>1. ford.</th>'
                   '<th>2. ford.</th><th>3. ford.</th><th>Összesen</th>')
         for i, s in enumerate(reszletes):
-            hely, erem = helyezes_es_erem(i, reszletes)
-            sorok += (f'<tr><td>{hely}. {erem}</td><td>{s["nev"]}</td>'
+            jelzes = helyezes_es_erem(i, reszletes)
+            sorok += (f'<tr><td>{jelzes}</td><td>{s["nev"]}</td>'
                       f'<td>{s["f1"]}</td><td>{s["f2"]}</td><td>{s["f3"]}</td>'
                       f'<td><b>{s["ossz"]}</b></td></tr>')
         alcim = "A csoportkör fordulóinak pontjai. (A bónusz az Összesenben szerepel.)"
@@ -503,9 +511,20 @@ def elo_tippek(request: Request, fazis: str = "1"):
         else:
             fejlec += f'<th title="{hazai} – {vendeg}" style="color:var(--muted)">{cimke}</th>'
 
-    # sorok: userenként, pont szerint (helyezés-számmal)
+    # sorok: userenként, pont szerint (top 3 érem-emoji, holtversennyel)
+    def hely_jelzes(idx):
+        pont = userek[idx]["pont"]
+        hely = 1 + sum(1 for x in userek if x["pont"] > pont)
+        if hely == 1:
+            return '<span class="medal">🥇</span>'
+        elif hely == 2:
+            return '<span class="medal">🥈</span>'
+        elif hely == 3:
+            return '<span class="medal">🥉</span>'
+        return f"{hely}."
+
     sorok = ""
-    for i, u in enumerate(userek, 1):
+    for i, u in enumerate(userek):
         cellak = ""
         tippek_u = queries.sajat_tippek(conn, u["id"])
         pontok_u = queries.sajat_pontok(conn, u["id"])
@@ -524,7 +543,7 @@ def elo_tippek(request: Request, fazis: str = "1"):
                         cls = "pt3" if p == 3 else ("pt12" if p in (1, 2) else "pt0")
                         pont_jel = f'<div style="margin-top:3px"><span class="ptbadge {cls}" style="margin:0;padding:2px 7px;font-size:.72rem">{p}</span></div>'
                     cellak += f'<td style="text-align:center"><div>{t[0]}:{t[1]}</div>{pont_jel}</td>'
-        sorok += f'<tr><td>{i}.</td><td><b>{u["nev"]}</b></td><td><b>{u["pont"]}</b></td>{cellak}</tr>'
+        sorok += f'<tr><td>{hely_jelzes(i)}</td><td><b>{u["nev"]}</b></td><td><b>{u["pont"]}</b></td>{cellak}</tr>'
 
     # bónusz-szekció: csak a torna kezdete után látható
     elso = conn.execute("SELECT kickoff_utc FROM matches ORDER BY kickoff_utc LIMIT 1").fetchone()
