@@ -48,11 +48,13 @@ def _hu_dt(iso_utc: str):
 
 def nap_kulcs(iso_utc: str):
     """
-    A meccs 'műsornapja' (date objektum). A pontosan 00:00-kor kezdődő meccs
-    az ELŐZŐ naphoz tartozik (24:00-ként jelenik meg).
+    A meccs 'műsornapja' (date objektum). A késő esti / hajnali meccsek az
+    ELŐZŐ naphoz tartoznak: a magyar idő szerint reggel 6 óra ELŐTT kezdődő
+    meccs az előző esti műsornaphoz számít (így az éjfélbe nyúló fordulók
+    nem keverednek a következő nappal).
     """
     h = _hu_dt(iso_utc)
-    if h.hour == 0 and h.minute == 0:
+    if h.hour < 6:
         return (h - timedelta(days=1)).date()
     return h.date()
 
@@ -63,10 +65,12 @@ def nap_cimke(d):
 
 
 def ko_ido(iso_utc: str) -> str:
-    """Csak az időpont, a pontosan éjféli meccs 24:00-ként."""
+    """Csak az időpont. A hajnali (06:00 előtti) meccsek meghosszabbított
+    órával jelennek meg (00:00->24:00, 01:00->25:00, 04:00->28:00), jelezve,
+    hogy az előző esti műsornaphoz tartoznak."""
     h = _hu_dt(iso_utc)
-    if h.hour == 0 and h.minute == 0:
-        return "24:00"
+    if h.hour < 6:
+        return f"{h.hour + 24:02d}:{h.minute:02d}"
     return h.strftime("%H:%M")
 
 
@@ -403,14 +407,16 @@ def ranglista_oldal(request: Request):
         # idx: 0-alapú sorindex; a hely a megelőző, magasabb pontúak száma + 1
         pont = lista[idx]["ossz"]
         hely = 1 + sum(1 for x in lista if x["ossz"] > pont)
-        # top 3: csak az érem-emoji (keskeny oszlop); 4.-től a szám
+        # top 3: csak az érem-emoji (keskeny oszlop); 4.-től a szám (pont nélkül)
         if hely == 1:
-            return '<span class="medal" title="1. hely">🥇</span>'
+            jel = '🥇'
         elif hely == 2:
-            return '<span class="medal" title="2. hely">🥈</span>'
+            jel = '🥈'
         elif hely == 3:
-            return '<span class="medal" title="3. hely">🥉</span>'
-        return f"{hely}."
+            jel = '🥉'
+        else:
+            jel = str(hely)
+        return f'<span class="helyjel">{jel}</span>'
 
     if ko_fazis:
         # kieséses szakasz: Csoportkör / Kieséses / Bónusz / Összes
@@ -516,12 +522,14 @@ def elo_tippek(request: Request, fazis: str = "1"):
         pont = userek[idx]["pont"]
         hely = 1 + sum(1 for x in userek if x["pont"] > pont)
         if hely == 1:
-            return '<span class="medal">🥇</span>'
+            jel = '🥇'
         elif hely == 2:
-            return '<span class="medal">🥈</span>'
+            jel = '🥈'
         elif hely == 3:
-            return '<span class="medal">🥉</span>'
-        return f"{hely}."
+            jel = '🥉'
+        else:
+            jel = str(hely)
+        return f'<span class="helyjel">{jel}</span>'
 
     sorok = ""
     for i, u in enumerate(userek):

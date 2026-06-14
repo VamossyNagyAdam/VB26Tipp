@@ -485,24 +485,26 @@ def van_kieseses_parositas(conn):
 
 def meccsek_fordulora_atfedessel(conn, fordulo: int):
     """A megadott csoportkör-forduló meccsei, PLUSZ a más fordulóhoz tartozó
-    meccsek, amelyek ugyanazon a napon vannak, mint a forduló valamely napja.
+    meccsek, amelyek ugyanazon a MŰSORNAPON vannak, mint a forduló valamely napja.
+    Műsornap: magyar idő (UTC+2), a hajnali (06:00 előtti) meccs az előző naphoz.
+    SQL-ben: date(kickoff_utc, '+2 hours', '-6 hours') = date(kickoff_utc, '-4 hours').
     Visszaad: lista (meccs_sor, sajat_fordulo_e) párokkal, kickoff szerint."""
-    # a forduló napjai
+    MUSORNAP = "date(kickoff_utc, '-4 hours')"
+    # a forduló műsornapjai
     sajat = conn.execute(
-        "SELECT DISTINCT substr(kickoff_utc,1,10) FROM matches "
+        f"SELECT DISTINCT {MUSORNAP} FROM matches "
         "WHERE matchday=? AND csoport NOT IN ('R32','R16','QF','SF','3rd','FIN')",
         (fordulo,),
     ).fetchall()
     napok = {r[0] for r in sajat}
     if not napok:
         return []
-    # minden csoportkörös meccs ezeken a napokon (a sajátok + átlógók)
     qmarks = ",".join("?" * len(napok))
     rows = conn.execute(
         "SELECT id, csoport, hazai, vendeg, kickoff_utc, "
         "eredmeny_hazai, eredmeny_vendeg, matchday, hazai_rov, vendeg_rov, "
         "hazai_zaszlo, vendeg_zaszlo "
-        "FROM matches WHERE substr(kickoff_utc,1,10) IN (" + qmarks + ") "
+        f"FROM matches WHERE {MUSORNAP} IN (" + qmarks + ") "
         "AND csoport NOT IN ('R32','R16','QF','SF','3rd','FIN') "
         "ORDER BY kickoff_utc",
         tuple(napok),
@@ -515,12 +517,12 @@ def aktualis_fazis(conn, van_ko: bool) -> str:
     legközelebbi jövőbeli meccsnap tartozik. Átfedő napnál a KÉSŐBBI fordulót adja.
     Ha már nincs jövőbeli csoportmeccs és van kieséses, akkor 'ko'."""
     ma = now_utc_iso()[:10]
-    # a mai vagy legközelebbi jövőbeli csoportmeccs-nap
+    # a mai vagy legközelebbi jövőbeli csoportmeccs-MŰSORNAP
     row = conn.execute(
-        "SELECT substr(kickoff_utc,1,10), MAX(matchday) FROM matches "
+        "SELECT date(kickoff_utc, '-4 hours') AS musornap, MAX(matchday) FROM matches "
         "WHERE csoport NOT IN ('R32','R16','QF','SF','3rd','FIN') "
-        "AND substr(kickoff_utc,1,10) >= ? "
-        "GROUP BY substr(kickoff_utc,1,10) ORDER BY substr(kickoff_utc,1,10) LIMIT 1",
+        "AND date(kickoff_utc, '-4 hours') >= ? "
+        "GROUP BY musornap ORDER BY musornap LIMIT 1",
         (ma,),
     ).fetchone()
     if row and row[1]:

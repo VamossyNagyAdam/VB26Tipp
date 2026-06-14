@@ -74,6 +74,8 @@ h1{font-size:1.6rem;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
 /* bónusz leadva jelzés */
 .leadva{font-size:.8rem;color:var(--accent);font-weight:700}
 .medal{margin-left:2px;font-size:1rem}
+.helyjel{display:inline-flex;align-items:center;justify-content:center;
+  min-width:28px;font-size:1.05rem;font-weight:700;line-height:1}
 .xfade{background:var(--panel2);color:var(--accent2);border-radius:6px;
   padding:1px 7px;font-size:.72rem;font-weight:700;white-space:nowrap}
 .btn{background:var(--accent);color:#06231a;border:none;border-radius:10px;
