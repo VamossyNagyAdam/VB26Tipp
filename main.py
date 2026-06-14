@@ -48,13 +48,11 @@ def _hu_dt(iso_utc: str):
 
 def nap_kulcs(iso_utc: str):
     """
-    A meccs 'műsornapja' (date objektum). A késő esti / hajnali meccsek az
-    ELŐZŐ naphoz tartoznak: a magyar idő szerint reggel 6 óra ELŐTT kezdődő
-    meccs az előző esti műsornaphoz számít (így az éjfélbe nyúló fordulók
-    nem keverednek a következő nappal).
+    A meccs 'műsornapja' (date objektum). A pontosan 00:00-kor kezdődő meccs
+    az ELŐZŐ naphoz tartozik (24:00-ként jelenik meg). Minden más a saját napja.
     """
     h = _hu_dt(iso_utc)
-    if h.hour < 6:
+    if h.hour == 0 and h.minute == 0:
         return (h - timedelta(days=1)).date()
     return h.date()
 
@@ -65,12 +63,10 @@ def nap_cimke(d):
 
 
 def ko_ido(iso_utc: str) -> str:
-    """Csak az időpont. A hajnali (06:00 előtti) meccsek meghosszabbított
-    órával jelennek meg (00:00->24:00, 01:00->25:00, 04:00->28:00), jelezve,
-    hogy az előző esti műsornaphoz tartoznak."""
+    """Csak az időpont, a pontosan éjféli (00:00) meccs 24:00-ként, a többi valós."""
     h = _hu_dt(iso_utc)
-    if h.hour < 6:
-        return f"{h.hour + 24:02d}:{h.minute:02d}"
+    if h.hour == 0 and h.minute == 0:
+        return "24:00"
     return h.strftime("%H:%M")
 
 

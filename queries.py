@@ -486,11 +486,10 @@ def van_kieseses_parositas(conn):
 def meccsek_fordulora_atfedessel(conn, fordulo: int):
     """A megadott csoportkör-forduló meccsei, PLUSZ a más fordulóhoz tartozó
     meccsek, amelyek ugyanazon a MŰSORNAPON vannak, mint a forduló valamely napja.
-    Műsornap: magyar idő (UTC+2), a hajnali (06:00 előtti) meccs az előző naphoz.
-    SQL-ben: date(kickoff_utc, '+2 hours', '-6 hours') = date(kickoff_utc, '-4 hours').
+    Műsornap: magyar idő (UTC+2); a pontosan éjféli (00:00 HU) meccs az előző naphoz.
+    SQL: date(kickoff_utc, '+2 hours', '-1 minute') adja a HU műsornapot.
     Visszaad: lista (meccs_sor, sajat_fordulo_e) párokkal, kickoff szerint."""
-    MUSORNAP = "date(kickoff_utc, '-4 hours')"
-    # a forduló műsornapjai
+    MUSORNAP = "date(kickoff_utc, '+2 hours', '-1 minute')"
     sajat = conn.execute(
         f"SELECT DISTINCT {MUSORNAP} FROM matches "
         "WHERE matchday=? AND csoport NOT IN ('R32','R16','QF','SF','3rd','FIN')",
@@ -517,11 +516,11 @@ def aktualis_fazis(conn, van_ko: bool) -> str:
     legközelebbi jövőbeli meccsnap tartozik. Átfedő napnál a KÉSŐBBI fordulót adja.
     Ha már nincs jövőbeli csoportmeccs és van kieséses, akkor 'ko'."""
     ma = now_utc_iso()[:10]
-    # a mai vagy legközelebbi jövőbeli csoportmeccs-MŰSORNAP
+    # a mai vagy legközelebbi jövőbeli csoportmeccs-MŰSORNAP (HU idő)
     row = conn.execute(
-        "SELECT date(kickoff_utc, '-4 hours') AS musornap, MAX(matchday) FROM matches "
+        "SELECT date(kickoff_utc, '+2 hours', '-1 minute') AS musornap, MAX(matchday) FROM matches "
         "WHERE csoport NOT IN ('R32','R16','QF','SF','3rd','FIN') "
-        "AND date(kickoff_utc, '-4 hours') >= ? "
+        "AND date(kickoff_utc, '+2 hours', '-1 minute') >= ? "
         "GROUP BY musornap ORDER BY musornap LIMIT 1",
         (ma,),
     ).fetchone()
