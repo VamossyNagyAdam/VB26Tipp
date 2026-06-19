@@ -512,23 +512,31 @@ def meccsek_fordulora_atfedessel(conn, fordulo: int):
 
 
 def aktualis_fazis(conn, van_ko: bool) -> str:
-    """A belépéskor mutatandó fázis: az a forduló/szakasz, amelyhez a mai vagy
-    legközelebbi jövőbeli meccsnap tartozik. Átfedő napnál a KÉSŐBBI fordulót adja.
-    Ha már nincs jövőbeli csoportmeccs és van kieséses, akkor 'ko'."""
-    ma = now_utc_iso()[:10]
-    # a mai vagy legközelebbi jövőbeli csoportmeccs-MŰSORNAP (HU idő)
-    row = conn.execute(
-        "SELECT date(kickoff_utc, '+2 hours', '-1 minute') AS musornap, MAX(matchday) FROM matches "
-        "WHERE csoport NOT IN ('R32','R16','QF','SF','3rd','FIN') "
-        "AND date(kickoff_utc, '+2 hours', '-1 minute') >= ? "
-        "GROUP BY musornap ORDER BY musornap LIMIT 1",
-        (ma,),
-    ).fetchone()
-    if row and row[1]:
-        # MAX(matchday) az adott napon: átfedésnél a későbbi forduló
-        return str(row[1])
-    # nincs több jövőbeli csoportmeccs
+    """A belépéskor mutatandó fázis. Szabály: az AKTUÁLIS forduló az a legmagasabb,
+    amelynek már ELKEZDŐDÖTT legalább egy meccse (a következő forduló első meccse
+    még nem indult el). A torna előtt az 1. forduló. Ha már a kieséses szakasz
+    is elindult, akkor 'ko'.
+    """
+    most = now_utc_iso()
+
+    # elindult-e már kieséses meccs (konkrét párosítással)?
     if van_ko:
-        return "ko"
-    # minden csoportmeccs lement, nincs kieséses -> az utolsó forduló (3)
-    return "3"
+        ko_indult = conn.execute(
+            "SELECT COUNT(*) FROM matches WHERE csoport IN ('R32','R16','QF','SF','3rd','FIN') "
+            "AND kickoff_utc <= ?",
+            (most,),
+        ).fetchone()[0]
+        if ko_indult > 0:
+            return "ko"
+
+    # a legmagasabb csoportkör-forduló, aminek már elkezdődött az első meccse
+    row = conn.execute(
+        "SELECT MAX(matchday) FROM matches "
+        "WHERE csoport NOT IN ('R32','R16','QF','SF','3rd','FIN') "
+        "AND matchday IS NOT NULL AND kickoff_utc <= ?",
+        (most,),
+    ).fetchone()
+    if row and row[0]:
+        return str(row[0])
+    # még egyetlen meccs sem kezdődött el -> 1. forduló
+    return "1"

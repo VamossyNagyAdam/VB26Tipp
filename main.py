@@ -176,7 +176,8 @@ def fooldal(request: Request, uzenet: str = "", fazis: str = ""):
     sorok = ""
     aktualis_nap = None
     van_nyitott = False  # van-e még tippelhető meccs (a Mindet ment gombhoz)
-    ma = queries.now_utc_iso()[:10]
+    # a mai nap HU idő szerint (a megjelenített műsornapokkal konzisztensen)
+    ma_hu = _hu_dt(queries.now_utc_iso()).date()
     horgony_kell = True  # az első mai/jövőbeli naphoz teszünk egy horgonyt
     for meccs_par in meccsek:
         m, sajat_fordulo = meccs_par
@@ -185,9 +186,9 @@ def fooldal(request: Request, uzenet: str = "", fazis: str = ""):
         nk = nap_kulcs(ko)
         if nk != aktualis_nap:
             aktualis_nap = nk
-            # horgony az első olyan napra, ami ma vagy később van
+            # horgony az első olyan napra, ami HU idő szerint ma vagy később van
             horgony = ""
-            if horgony_kell and ko[:10] >= ma:
+            if horgony_kell and nk >= ma_hu:
                 horgony = ' id="ugras"'
                 horgony_kell = False
             sorok += (f'<div class="daysep"{horgony}><div class="dlabel">{nap_cimke(nk)}</div>'
@@ -465,13 +466,15 @@ def health():
 
 
 @app.get("/elo-tippek", response_class=HTMLResponse)
-def elo_tippek(request: Request, fazis: str = "1"):
+def elo_tippek(request: Request, fazis: str = ""):
     conn = db.kapcsolat()
     user = aktualis_user(request, conn)
     if not user:
         return RedirectResponse("/belepes", status_code=303)
 
     van_ko = queries.van_kieseses_parositas(conn)
+    if fazis == "":
+        fazis = queries.aktualis_fazis(conn, van_ko)
     if fazis not in ("1", "2", "3", "ko"):
         fazis = "1"
     if fazis == "ko" and not van_ko:
