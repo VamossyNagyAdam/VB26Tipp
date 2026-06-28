@@ -45,15 +45,28 @@ def fetch_matches(token: str):
 
 
 def van_fuggoben(conn):
-    """Van-e olyan befejezett (kickoff +1.5h elmult), de meg eredmeny nelkuli
-    meccs, amire erdemes synct futtatni? Igy a cron nem hiv API-t feleslegesen."""
+    """Érdemes-e synct futtatni? Igaz, ha:
+    (a) van befejezett (kickoff +1.5h elmult), de meg eredmeny nelkuli meccs, VAGY
+    (b) van olyan kieseses meccs, ami meg helyorzos (varjuk a parositast a forrasbol).
+    Igy a cron nem hiv API-t feleslegesen, de a parositasok frissulnek."""
     from datetime import datetime, timezone, timedelta
     hatar = (datetime.now(timezone.utc) - timedelta(hours=1, minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    # (a) eredmenyre varo lement meccs
     row = conn.execute(
         "SELECT COUNT(*) FROM matches WHERE kickoff_utc <= ? AND eredmeny_hazai IS NULL",
         (hatar,),
     ).fetchone()
-    return row[0] > 0
+    if row[0] > 0:
+        return True
+    # (b) helyorzos kieseses meccs (meg nincs konkret parositas)
+    import queries
+    ko = conn.execute(
+        "SELECT hazai, vendeg FROM matches WHERE csoport IN ('R32','R16','QF','SF','3rd','FIN')"
+    ).fetchall()
+    for h, v in ko:
+        if queries.helyorzo_nev(h) or queries.helyorzo_nev(v):
+            return True
+    return False
 
 
 def sync(conn, token: str):
@@ -74,11 +87,28 @@ def sync(conn, token: str):
         mid, megvolt_h, megvolt_v, forras, mi_hazai, mi_vendeg = row
 
         # kieseses nevfrissites: ha a forras mar konkret csapatot ad, frissitjuk
+        # a nevet ES a zaszlot/roviditest is. Akkor is frissitunk, ha a nev mar
+        # stimmel, de a zaszlo hianyzik (korabbi sync nev nelkul irta at).
         fd_hazai = mi_nevunk(m["homeTeam"].get("name") or "")
         fd_vendeg = mi_nevunk(m["awayTeam"].get("name") or "")
-        if fd_hazai and fd_vendeg and (fd_hazai != mi_hazai or fd_vendeg != mi_vendeg):
-            conn.execute("UPDATE matches SET hazai=?, vendeg=? WHERE id=?",
-                         (fd_hazai, fd_vendeg, mid))
+        nev_valtozott = fd_hazai and fd_vendeg and (fd_hazai != mi_hazai or fd_vendeg != mi_vendeg)
+        # van-e mar zaszlo ennel a meccsnel?
+        zaszlo_hianyzik = conn.execute(
+            "SELECT hazai_zaszlo IS NULL OR vendeg_zaszlo IS NULL FROM matches WHERE id=?", (mid,)
+        ).fetchone()[0]
+        # csak akkor toltunk zaszlot, ha a forras konkret csapatot ad (nem helyorzo)
+        import queries as _q
+        forras_konkret = fd_hazai and fd_vendeg and not _q.helyorzo_nev(fd_hazai) and not _q.helyorzo_nev(fd_vendeg)
+        if nev_valtozott or (forras_konkret and zaszlo_hianyzik):
+            h_tla = (m.get("homeTeam") or {}).get("tla")
+            v_tla = (m.get("awayTeam") or {}).get("tla")
+            h_crest = (m.get("homeTeam") or {}).get("crest")
+            v_crest = (m.get("awayTeam") or {}).get("crest")
+            conn.execute(
+                "UPDATE matches SET hazai=?, vendeg=?, hazai_rov=?, vendeg_rov=?, "
+                "hazai_zaszlo=?, vendeg_zaszlo=? WHERE id=?",
+                (fd_hazai, fd_vendeg, h_tla, v_tla, h_crest, v_crest, mid),
+            )
             conn.commit()
             nev_frissitve += 1
 

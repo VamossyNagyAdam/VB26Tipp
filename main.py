@@ -581,8 +581,10 @@ def elo_tippek(request: Request, fazis: str = ""):
 
 @app.api_route("/sync", methods=["GET", "POST"])
 def sync_endpoint(kulcs: str = ""):
-    """Külső cron hívja (percenként). Csak akkor hív API-t, ha van olyan
-    befejezett meccs, ami még eredményre vár – így nem fut feleslegesen."""
+    """Külső cron hívja (pár percenként). Minden híváskor lefut és frissít
+    (1 API-hívás/futás, így a 10/perc limittel nem ütközik). Egyetlen kivétel:
+    ha a torna már teljesen véget ért (a döntő is lement és eredményes), leáll,
+    hogy a VB után ne hívjon feleslegesen."""
     if kulcs != ADMIN_JELSZO:
         return {"hiba": "Hibás kulcs."}
     token = os.environ.get("FOOTBALL_DATA_TOKEN")
@@ -590,11 +592,15 @@ def sync_endpoint(kulcs: str = ""):
         return {"hiba": "Nincs beállítva FOOTBALL_DATA_TOKEN."}
     import sync_results
     conn = db.kapcsolat()
-    if not sync_results.van_fuggoben(conn):
-        return {"ok": "Nincs függőben lévő meccs, szinkron kihagyva."}
+    # a torna vége: a döntő (FIN) lement és van eredménye -> nincs több teendő
+    donto = conn.execute(
+        "SELECT eredmeny_hazai FROM matches WHERE csoport='FIN' LIMIT 1"
+    ).fetchone()
+    if donto and donto[0] is not None:
+        return {"ok": "A torna véget ért, szinkron leállítva."}
     try:
         f, nf, k, np, o = sync_results.sync(conn, token)
-        return {"ok": f"Szinkron kész. Eredmény frissítve: {f}, név frissítve: {nf}."}
+        return {"ok": f"Szinkron kész. Eredmény frissítve: {f}, párosítás/zászló frissítve: {nf}."}
     except Exception as e:
         return {"hiba": f"Szinkron hiba: {type(e).__name__}"}
 
