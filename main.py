@@ -62,6 +62,114 @@ def nap_cimke(d):
     return f"{HONAPOK[d.month]} {d.day}. — {NAPOK[d.weekday()]}"
 
 
+KOR_NEVEK = {
+    "R32": "R32", "R16": "R16", "QF": "QF", "SF": "SF",
+    "3rd": "Bronz", "FIN": "Döntő",
+}
+
+def kor_nev(csoport):
+    """Kieséses csoport-kód -> rövid kör-név (csoportkörnél None)."""
+    return KOR_NEVEK.get(csoport)
+
+
+def agrajz_svg(conn):
+    """Egyszerű kieséses ágrajz (SVG): körönkénti oszlopok balról jobbra,
+    a csapatok zászló-körrel és eredménnyel, vonalakkal összekötve.
+    A még el nem dőlt párosítások üres helyként jelennek meg."""
+    import queries
+    meccsek = queries.osszes_kieseses_meccs(conn)
+    if not meccsek:
+        return ""
+
+    # körök sorrendje és meccsszáma
+    korok = [("R32", 16), ("R16", 8), ("QF", 4), ("SF", 2), ("FIN", 1)]
+    # meccsek körönként csoportosítva
+    per_kor = {k: [] for k, _ in korok}
+    for m in meccsek:
+        if m[1] in per_kor:
+            per_kor[m[1]].append(m)
+
+    def helyorzo(n):
+        return queries.helyorzo_nev(n)
+
+    # méretek
+    OSZLOP_W = 132      # egy kör oszlopának szélessége
+    MERKOZES_H = 46     # egy meccs-doboz magassága
+    RES = 14            # meccsek közti rés az első körben
+    FLAG = 16           # zászló-kör átmérő
+    bal = 10
+    teteje = 30
+
+    # az R32 (16 meccs) határozza meg a teljes magasságot
+    n0 = 16
+    teljes_h = teteje + n0 * (MERKOZES_H + RES)
+    teljes_w = bal + len(korok) * OSZLOP_W + 40
+
+    elemek = []
+    # köronkénti y-pozíciók: minden következő kör a párok közé centrál
+    elozo_y = []
+    for ki, (kod, db) in enumerate(korok):
+        x = bal + ki * OSZLOP_W
+        lista = per_kor.get(kod, [])
+        # cím
+        cn = kor_nev(kod) or kod
+        elemek.append(f'<text x="{x + OSZLOP_W//2 - 14}" y="18" font-weight="800">{cn}</text>')
+
+        y_kozepek = []
+        for i in range(db):
+            if ki == 0:
+                 y = teteje + i * (MERKOZES_H + RES)
+            else:
+                # az előző kör két szomszédos meccsének középpontja közé
+                also = elozo_y[2*i] if 2*i < len(elozo_y) else teteje
+                felso = elozo_y[2*i+1] if 2*i+1 < len(elozo_y) else also
+                y = (also + felso) // 2
+            y_kozepek.append(y + MERKOZES_H//2)
+
+            m = lista[i] if i < len(lista) else None
+            # meccs-doboz: két csapat zászlóval + eredmény
+            if m:
+                hazai, vendeg = m[2], m[3]
+                eh, ev = m[5], m[6]
+                hz, vz = m[9], m[10]
+                hr = m[7] or (hazai[:3] if not helyorzo(hazai) else "")
+                vr = m[8] or (vendeg[:3] if not helyorzo(vendeg) else "")
+            else:
+                hr = vr = ""
+                eh = ev = None
+                hz = vz = None
+            # felső csapat
+            yf = y + 8
+            if hz and not (m and helyorzo(m[2])):
+                elemek.append(f'<image href="{hz}" x="{x+4}" y="{yf-FLAG//2}" width="{FLAG}" height="{FLAG}" clip-path="circle({FLAG//2})"/>')
+            else:
+                elemek.append(f'<circle class="bempty" cx="{x+4+FLAG//2}" cy="{yf}" r="{FLAG//2}"/>')
+            elemek.append(f'<text x="{x+4+FLAG+4}" y="{yf+4}">{hr}</text>')
+            if eh is not None:
+                elemek.append(f'<text class="bscore" x="{x+OSZLOP_W-26}" y="{yf+4}">{eh}</text>')
+            # alsó csapat
+            ya = y + MERKOZES_H - 8
+            if vz and not (m and helyorzo(m[3])):
+                elemek.append(f'<image href="{vz}" x="{x+4}" y="{ya-FLAG//2}" width="{FLAG}" height="{FLAG}" clip-path="circle({FLAG//2})"/>')
+            else:
+                elemek.append(f'<circle class="bempty" cx="{x+4+FLAG//2}" cy="{ya}" r="{FLAG//2}"/>')
+            elemek.append(f'<text x="{x+4+FLAG+4}" y="{ya+4}">{vr}</text>')
+            if ev is not None:
+                elemek.append(f'<text class="bscore" x="{x+OSZLOP_W-26}" y="{ya+4}">{ev}</text>')
+
+            # összekötő vonal a következő körhöz
+            if ki < len(korok) - 1:
+                kx = x + OSZLOP_W - 8
+                cy = y + MERKOZES_H//2
+                elemek.append(f'<path class="bline" d="M{x+OSZLOP_W-20},{cy} H{kx}"/>')
+
+        elozo_y = y_kozepek
+
+    return (f'<div class="bracket-wrap"><svg class="bracket-svg" '
+            f'viewBox="0 0 {teljes_w} {teljes_h}" xmlns="http://www.w3.org/2000/svg">'
+            + "".join(elemek) + '</svg></div>')
+
+
 def ko_ido(iso_utc: str) -> str:
     """Csak az időpont, a pontosan éjféli (00:00) meccs 24:00-ként, a többi valós."""
     h = _hu_dt(iso_utc)
@@ -492,29 +600,38 @@ def elo_tippek(request: Request, fazis: str = ""):
     valaszto += "</select>"
 
     # a fázis meccsei (kiesésesnél csak a kész párosításúak)
-    if fazis == "ko":
-        meccsek = [(r[0], r[2], r[3], r[4], r[8], r[9], r[5], r[6])
+    ko_nezet = (fazis == "ko")
+    if ko_nezet:
+        # (id, hazai, vendeg, kickoff, hrov, vrov, eh, ev, csoport)
+        meccsek = [(r[0], r[2], r[3], r[4], r[8], r[9], r[5], r[6], r[1])
                    for r in queries.kieseses_kesz_meccsek(conn)]
     else:
-        meccsek = queries.meccsek_fordulora(conn, fazis)
+        meccsek = [(r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], None)
+                   for r in queries.meccsek_fordulora(conn, fazis)]
     userek = queries.aktiv_userek_pontokkal(conn)  # már pont szerint csökkenőben
 
-    # fejléc: meccsek rövidítéssel + lement meccs végeredménye
+    # fejléc: meccsek rövidítéssel + lement meccs végeredménye (+ kör a kiesésesnél)
     fejlec = '<th>#</th><th>Játékos</th><th>Pont</th>'
     meccs_lezart = []  # (mid, zart, eh, ev)
     for m in meccsek:
-        mid, hazai, vendeg, ko, hrov, vrov, eh, ev = m
+        mid, hazai, vendeg, ko, hrov, vrov, eh, ev, csoport = m
         zart = most >= ko
         meccs_lezart.append((mid, zart, eh, ev))
         cimke = f"{hrov or hazai[:3]}–{vrov or vendeg[:3]}"
+        # kieséses körnév a fejléc tetejére
+        kor_txt = ""
+        if ko_nezet and csoport:
+            kn = kor_nev(csoport)
+            if kn:
+                kor_txt = f'<div class="korbadge">{kn}</div>'
         # lement meccs végeredménye a fejlécbe (ha már rögzítve)
         eredmeny_txt = ""
         if eh is not None:
             eredmeny_txt = f'<br><span class="result">{eh}–{ev}</span>'
         if zart:
-            fejlec += f'<th title="{hazai} – {vendeg}">{cimke}{eredmeny_txt}</th>'
+            fejlec += f'<th title="{hazai} – {vendeg}">{kor_txt}{cimke}{eredmeny_txt}</th>'
         else:
-            fejlec += f'<th title="{hazai} – {vendeg}" style="color:var(--muted)">{cimke}</th>'
+            fejlec += f'<th title="{hazai} – {vendeg}" style="color:var(--muted)">{kor_txt}{cimke}</th>'
 
     # sorok: userenként, pont szerint (top 3 érem-emoji, holtversennyel)
     def hely_jelzes(idx):
@@ -571,11 +688,19 @@ def elo_tippek(request: Request, fazis: str = ""):
         bonusz_resz = ('<h2 style="font-size:1.15rem;margin:30px 2px 4px">Bónusz-tippek</h2>'
                        '<div class="card"><p class="pill">A bónusz-tippek a torna kezdete után válnak láthatóvá.</p></div>')
 
+    # kieséses ágrajz (mindig látszik, az el nem dőlt ágak üresek)
+    agrajz = agrajz_svg(conn)
+    agrajz_resz = ""
+    if agrajz:
+        agrajz_resz = (f'<h2 style="font-size:1.15rem;margin:30px 2px 8px">Kieséses ágrajz</h2>'
+                       f'<div class="card">{agrajz}</div>')
+
     body = f"""<h1>Élő tippek</h1>
     <p class="sub">Mindenki tippje – csak a már elkezdődött meccsekre. {valaszto}</p>
     <div class="card" style="overflow-x:auto"><table><thead><tr>{fejlec}</tr></thead>
     <tbody>{sorok}</tbody></table></div>
-    {bonusz_resz}"""
+    {bonusz_resz}
+    {agrajz_resz}"""
     return T.page("Élő tippek", body, user[1])
 
 

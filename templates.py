@@ -76,6 +76,16 @@ h1{font-size:1.6rem;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
 .medal{margin-left:2px;font-size:1rem}
 .helyjel{display:inline-flex;align-items:center;justify-content:center;
   min-width:28px;font-size:1.05rem;font-weight:700;line-height:1}
+.korbadge{display:inline-block;background:var(--accent);color:#06231a;
+  font-weight:800;border-radius:5px;padding:1px 6px;font-size:.65rem;margin-bottom:3px}
+/* ágrajz */
+.bracket-wrap{overflow-x:auto;margin-top:20px}
+.bracket-svg{display:block;min-width:680px;margin:0 auto}
+.bracket-svg .bline{stroke:var(--line);stroke-width:1.5;fill:none}
+.bracket-svg .bflag{}
+.bracket-svg text{fill:var(--ink);font-size:11px;font-weight:600}
+.bracket-svg .bscore{fill:var(--accent);font-size:11px;font-weight:800}
+.bracket-svg .bempty{stroke:var(--line);stroke-width:1.5;fill:var(--panel2)}
 .xfade{background:var(--panel2);color:var(--accent2);border-radius:6px;
   padding:1px 7px;font-size:.72rem;font-weight:700;white-space:nowrap}
 .btn{background:var(--accent);color:#06231a;border:none;border-radius:10px;

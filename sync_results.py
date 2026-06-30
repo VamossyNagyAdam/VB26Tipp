@@ -112,11 +112,23 @@ def sync(conn, token: str):
             conn.commit()
             nev_frissitve += 1
 
-        # eredmeny: csak befejezett meccs, rendes jatekido
+        # eredmeny: csak befejezett meccs, RENDES JATEKIDO (90 perc, hosszabbitas nelkul)
         if m.get("status") != "FINISHED":
             kihagyva += 1
             continue
-        ft = (m.get("score") or {}).get("fullTime") or {}
+        score = m.get("score") or {}
+        duration = score.get("duration", "REGULAR")
+        if duration == "REGULAR":
+            # nincs hosszabbitas: a fullTime a rendes ido
+            ft = score.get("fullTime") or {}
+        else:
+            # hosszabbitas/tizenegyes volt: a rendes idot a regularTime adja.
+            # ha a forras nem adja a regularTime-ot, NEM irunk be automatikusan
+            # (rossz lenne a hosszabbitasos allast beirni) -> kezi rogzites kell.
+            ft = score.get("regularTime") or {}
+            if ft.get("home") is None or ft.get("away") is None:
+                kihagyva += 1
+                continue
         eh, ev = ft.get("home"), ft.get("away")
         if eh is None or ev is None:
             kihagyva += 1
