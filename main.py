@@ -73,97 +73,103 @@ def kor_nev(csoport):
 
 
 def agrajz_svg(conn):
-    """Egyszerű kieséses ágrajz (SVG): körönkénti oszlopok balról jobbra,
-    a csapatok zászló-körrel és eredménnyel, vonalakkal összekötve.
-    A még el nem dőlt párosítások üres helyként jelennek meg."""
+    """Valódi kieséses ágrajz (SVG): körönkénti oszlopok, minden következő kör
+    meccse a két szülő meccs közé centrálva, bracket-vonalakkal összekötve.
+    A még el nem dőlt párosítások üres körként jelennek meg. Háttér nélkül."""
     import queries
     meccsek = queries.osszes_kieseses_meccs(conn)
     if not meccsek:
         return ""
 
-    # körök sorrendje és meccsszáma
     korok = [("R32", 16), ("R16", 8), ("QF", 4), ("SF", 2), ("FIN", 1)]
-    # meccsek körönként csoportosítva
     per_kor = {k: [] for k, _ in korok}
     for m in meccsek:
         if m[1] in per_kor:
             per_kor[m[1]].append(m)
 
     def helyorzo(n):
-        return queries.helyorzo_nev(n)
+        return queries.helyorzo_nev(n or "")
 
-    # méretek
-    OSZLOP_W = 132      # egy kör oszlopának szélessége
-    MERKOZES_H = 46     # egy meccs-doboz magassága
-    RES = 14            # meccsek közti rés az első körben
-    FLAG = 16           # zászló-kör átmérő
-    bal = 10
-    teteje = 30
+    OSZLOP_W = 120
+    DOBOZ_H = 40        # egy meccs-doboz magassága
+    RES = 16            # rés az R32 meccsei közt
+    FLAG = 15
+    bal = 8
+    teteje = 28
 
-    # az R32 (16 meccs) határozza meg a teljes magasságot
     n0 = 16
-    teljes_h = teteje + n0 * (MERKOZES_H + RES)
-    teljes_w = bal + len(korok) * OSZLOP_W + 40
+    teljes_h = teteje + n0 * (DOBOZ_H + RES)
+    teljes_w = bal + len(korok) * OSZLOP_W + 30
 
     elemek = []
-    # köronkénti y-pozíciók: minden következő kör a párok közé centrál
-    elozo_y = []
+    elozo_kozepek = []  # az előző kör meccs-középpontjai (y)
+
     for ki, (kod, db) in enumerate(korok):
         x = bal + ki * OSZLOP_W
         lista = per_kor.get(kod, [])
-        # cím
         cn = kor_nev(kod) or kod
-        elemek.append(f'<text x="{x + OSZLOP_W//2 - 14}" y="18" font-weight="800">{cn}</text>')
+        elemek.append(f'<text x="{x + 6}" y="16" font-weight="800">{cn}</text>')
 
-        y_kozepek = []
+        kozepek = []
         for i in range(db):
             if ki == 0:
-                 y = teteje + i * (MERKOZES_H + RES)
+                y_top = teteje + i * (DOBOZ_H + RES)
             else:
-                # az előző kör két szomszédos meccsének középpontja közé
-                also = elozo_y[2*i] if 2*i < len(elozo_y) else teteje
-                felso = elozo_y[2*i+1] if 2*i+1 < len(elozo_y) else also
-                y = (also + felso) // 2
-            y_kozepek.append(y + MERKOZES_H//2)
+                # a két szülő meccs középpontja közé centrál
+                p1 = elozo_kozepek[2*i] if 2*i < len(elozo_kozepek) else teteje
+                p2 = elozo_kozepek[2*i+1] if 2*i+1 < len(elozo_kozepek) else p1
+                y_kozep = (p1 + p2) // 2
+                y_top = y_kozep - DOBOZ_H // 2
+            kozep = y_top + DOBOZ_H // 2
+            kozepek.append(kozep)
 
             m = lista[i] if i < len(lista) else None
-            # meccs-doboz: két csapat zászlóval + eredmény
             if m:
-                hazai, vendeg = m[2], m[3]
-                eh, ev = m[5], m[6]
-                hz, vz = m[9], m[10]
-                hr = m[7] or (hazai[:3] if not helyorzo(hazai) else "")
-                vr = m[8] or (vendeg[:3] if not helyorzo(vendeg) else "")
+                hr = m[7] or (m[2][:3] if not helyorzo(m[2]) else "")
+                vr = m[8] or (m[3][:3] if not helyorzo(m[3]) else "")
+                eh, ev, hz, vz = m[5], m[6], m[9], m[10]
+                h_kesz = not helyorzo(m[2])
+                v_kesz = not helyorzo(m[3])
             else:
-                hr = vr = ""
-                eh = ev = None
-                hz = vz = None
+                hr = vr = ""; eh = ev = hz = vz = None; h_kesz = v_kesz = False
+
             # felső csapat
-            yf = y + 8
-            if hz and not (m and helyorzo(m[2])):
-                elemek.append(f'<image href="{hz}" x="{x+4}" y="{yf-FLAG//2}" width="{FLAG}" height="{FLAG}" clip-path="circle({FLAG//2})"/>')
+            yf = y_top + 11
+            if hz and h_kesz:
+                elemek.append(f'<image href="{hz}" x="{x}" y="{yf-FLAG//2}" width="{FLAG}" height="{FLAG}" clip-path="circle({FLAG//2})"/>')
             else:
-                elemek.append(f'<circle class="bempty" cx="{x+4+FLAG//2}" cy="{yf}" r="{FLAG//2}"/>')
-            elemek.append(f'<text x="{x+4+FLAG+4}" y="{yf+4}">{hr}</text>')
+                elemek.append(f'<circle class="bempty" cx="{x+FLAG//2}" cy="{yf}" r="{FLAG//2}"/>')
+            elemek.append(f'<text x="{x+FLAG+4}" y="{yf+4}">{hr}</text>')
             if eh is not None:
-                elemek.append(f'<text class="bscore" x="{x+OSZLOP_W-26}" y="{yf+4}">{eh}</text>')
+                elemek.append(f'<text class="bscore" x="{x+OSZLOP_W-30}" y="{yf+4}">{eh}</text>')
             # alsó csapat
-            ya = y + MERKOZES_H - 8
-            if vz and not (m and helyorzo(m[3])):
-                elemek.append(f'<image href="{vz}" x="{x+4}" y="{ya-FLAG//2}" width="{FLAG}" height="{FLAG}" clip-path="circle({FLAG//2})"/>')
+            ya = y_top + DOBOZ_H - 11
+            if vz and v_kesz:
+                elemek.append(f'<image href="{vz}" x="{x}" y="{ya-FLAG//2}" width="{FLAG}" height="{FLAG}" clip-path="circle({FLAG//2})"/>')
             else:
-                elemek.append(f'<circle class="bempty" cx="{x+4+FLAG//2}" cy="{ya}" r="{FLAG//2}"/>')
-            elemek.append(f'<text x="{x+4+FLAG+4}" y="{ya+4}">{vr}</text>')
+                elemek.append(f'<circle class="bempty" cx="{x+FLAG//2}" cy="{ya}" r="{FLAG//2}"/>')
+            elemek.append(f'<text x="{x+FLAG+4}" y="{ya+4}">{vr}</text>')
             if ev is not None:
-                elemek.append(f'<text class="bscore" x="{x+OSZLOP_W-26}" y="{ya+4}">{ev}</text>')
+                elemek.append(f'<text class="bscore" x="{x+OSZLOP_W-30}" y="{ya+4}">{ev}</text>')
 
-            # összekötő vonal a következő körhöz
-            if ki < len(korok) - 1:
-                kx = x + OSZLOP_W - 8
-                cy = y + MERKOZES_H//2
-                elemek.append(f'<path class="bline" d="M{x+OSZLOP_W-20},{cy} H{kx}"/>')
+        # bracket-vonalak: az aktuális kör minden szomszédos meccs-párját
+        # összeköti a következő kör meccsének magasságáig
+        if ki < len(korok) - 1:
+            kx = x + OSZLOP_W - 8           # a vonal jobb széle (kör jobb oldala)
+            next_x = bal + (ki+1) * OSZLOP_W  # a következő oszlop bal széle
+            for j in range(0, len(kozepek) - 1, 2):
+                y1 = kozepek[j]
+                y2 = kozepek[j+1]
+                kozep = (y1 + y2) // 2
+                # vízszintes vonalak a két meccsből kifelé
+                elemek.append(f'<path class="bline" d="M{kx},{y1} H{next_x-6}"/>')
+                elemek.append(f'<path class="bline" d="M{kx},{y2} H{next_x-6}"/>')
+                # függőleges összekötő a kettő közt
+                elemek.append(f'<path class="bline" d="M{next_x-6},{y1} V{y2}"/>')
+                # rövid vonal a következő kör meccséhez
+                elemek.append(f'<path class="bline" d="M{next_x-6},{kozep} H{next_x}"/>')
 
-        elozo_y = y_kozepek
+        elozo_kozepek = kozepek
 
     return (f'<div class="bracket-wrap"><svg class="bracket-svg" '
             f'viewBox="0 0 {teljes_w} {teljes_h}" xmlns="http://www.w3.org/2000/svg">'

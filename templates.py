@@ -86,6 +86,9 @@ h1{font-size:1.6rem;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
 .bracket-svg text{fill:var(--ink);font-size:11px;font-weight:600}
 .bracket-svg .bscore{fill:var(--accent);font-size:11px;font-weight:800}
 .bracket-svg .bempty{stroke:var(--line);stroke-width:1.5;fill:var(--panel2)}
+/* élő tippek fejléc: a meccs-cellák azonos magasságúak, felülre igazítva,
+   hogy az eredmény jelenléte ne tolja el a meccs-neveket */
+.card table thead th{vertical-align:top;height:58px}
 .xfade{background:var(--panel2);color:var(--accent2);border-radius:6px;
   padding:1px 7px;font-size:.72rem;font-weight:700;white-space:nowrap}
 .btn{background:var(--accent);color:#06231a;border:none;border-radius:10px;
