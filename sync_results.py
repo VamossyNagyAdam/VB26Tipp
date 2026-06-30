@@ -138,7 +138,22 @@ def sync(conn, token: str):
         if forras == "kezi":
             kihagyva += 1
             continue
-        # idempotencia: ha mar pont ez van, nincs teendo
+
+        # kieseses vegeredmeny (a tovabbjutashoz; a pontozas a rendes 90 percbol megy):
+        #   veg_*: a hosszabbitas utani golarany (ha volt hosszabbitas)
+        #   tizenegyes_*: a tizenegyes-parbaj eredmenye (ha volt)
+        veg = score.get("fullTime") or {}      # a VEGEREDMENY (hosszabbitas utan)
+        pen = score.get("penalties") or {}
+        veg_h, veg_v = veg.get("home"), veg.get("away")
+        ten_h, ten_v = pen.get("home"), pen.get("away")
+        conn.execute(
+            "UPDATE matches SET duration=?, veg_hazai=?, veg_vendeg=?, "
+            "tizenegyes_hazai=?, tizenegyes_vendeg=? WHERE id=?",
+            (duration, veg_h, veg_v, ten_h, ten_v, mid),
+        )
+        conn.commit()
+
+        # idempotencia: ha mar pont ez van a RENDES idore, nincs tobb teendo
         if megvolt_h == eh and megvolt_v == ev:
             continue
 

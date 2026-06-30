@@ -153,6 +153,25 @@ def _migracio(conn):
     if "vendeg_zaszlo" not in m_oszlopok:
         conn.execute("ALTER TABLE matches ADD COLUMN vendeg_zaszlo TEXT")
         conn.commit()
+    # kieséses végeredmény (a továbbjutáshoz; a pontozás a rendes 90 percből megy):
+    #   duration: REGULAR / EXTRA_TIME / PENALTY_SHOOTOUT
+    #   veg_hazai/veg_vendeg: a hosszabbítás utáni gólarány (ha volt hosszabbítás)
+    #   tizenegyes_hazai/tizenegyes_vendeg: a tizenegyes-párbaj eredménye (ha volt)
+    if "duration" not in m_oszlopok:
+        conn.execute("ALTER TABLE matches ADD COLUMN duration TEXT")
+        conn.commit()
+    if "veg_hazai" not in m_oszlopok:
+        conn.execute("ALTER TABLE matches ADD COLUMN veg_hazai INTEGER")
+        conn.commit()
+    if "veg_vendeg" not in m_oszlopok:
+        conn.execute("ALTER TABLE matches ADD COLUMN veg_vendeg INTEGER")
+        conn.commit()
+    if "tizenegyes_hazai" not in m_oszlopok:
+        conn.execute("ALTER TABLE matches ADD COLUMN tizenegyes_hazai INTEGER")
+        conn.commit()
+    if "tizenegyes_vendeg" not in m_oszlopok:
+        conn.execute("ALTER TABLE matches ADD COLUMN tizenegyes_vendeg INTEGER")
+        conn.commit()
 
 
 if __name__ == "__main__":

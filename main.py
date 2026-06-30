@@ -73,17 +73,18 @@ def kor_nev(csoport):
 
 
 def agrajz_svg(conn):
-    """Kieseses agrajz a hivatalos FIFA bracket-struktura szerint.
-    A meccseket koronkent fd_id-sorrendbe rakjuk (ez adja a hivatalos
-    meccs-szamot), es a fix bracket-poziciok szerint kotjuk ossze. Dobozos
-    elrendezes, a gyoztes (ha van eredmeny) kiemelve. Az el nem dolt parositasok
-    ures dobozkent jelennek meg. Hatter nelkul."""
+    """Kieseses agrajz a hivatalos FIFA 2026 bracket-struktura szerint.
+    A meccseket csapatnev-sorrend (R32) es a fix parositasi terkep szerint
+    helyezzuk el. A vonalak a 'kereszt az elso felben, szomszedos a masodikban'
+    R16-mintat koveztik. Dobozos elrendezes, gyoztes kiemelve, ures dobozok az
+    el nem dolt agaknal. Hatter nelkul."""
     import queries
 
     def sor(kod):
         return conn.execute(
             "SELECT id, hazai, vendeg, kickoff_utc, eredmeny_hazai, eredmeny_vendeg, "
-            "hazai_rov, vendeg_rov, hazai_zaszlo, vendeg_zaszlo, fd_id "
+            "hazai_rov, vendeg_rov, hazai_zaszlo, vendeg_zaszlo, fd_id, "
+            "duration, veg_hazai, veg_vendeg, tizenegyes_hazai, tizenegyes_vendeg "
             "FROM matches WHERE csoport=? ORDER BY fd_id", (kod,)
         ).fetchall()
 
@@ -91,32 +92,24 @@ def agrajz_svg(conn):
     if not r32:
         return ""
 
-    # az fd_id-sorrend NEM a bracket-sorrend. A hivatalos FIFA-struktura szerint
-    # atrendezzuk: minden kor csapatnevek alapjan a helyes agba kerul.
-    # A bracket-parok (felso csapatok) a W-szamok szerint, a te struktura-leirasod alapjan.
+    def helyorzo(n): return queries.helyorzo_nev(n or "")
+
     def rendezd(lista, sorrend_nevek):
-        """A meccseket a megadott (hazai) csapatnev-sorrend szerint rendezi.
-        Ami nem talalhato (helyorzos meg), a vegere/ures helyre kerul a fd_id-sorrend szerint."""
-        if not lista:
-            return lista
+        """A meccseket a megadott hazai-csapatnev sorrend szerint rendezi.
+        A meg el nem dolt (nem azonosithato) meccsek az ures helyekre kerulnek."""
+        eredmeny = [None] * len(sorrend_nevek)
         maradek = list(lista)
-        eredmeny = []
-        for nev in sorrend_nevek:
-            tal = None
+        for idx, nev in enumerate(sorrend_nevek):
             for m in maradek:
-                if (m[1] or "").lower() == nev.lower():
-                    tal = m; break
-            if tal:
-                eredmeny.append(tal); maradek.remove(tal)
-            else:
-                eredmeny.append(None)  # ures bracket-hely
-        # a maradek (nem azonositott) helyorzos meccsek az ures helyekre
-        ures_idx = [i for i, e in enumerate(eredmeny) if e is None]
-        for i, m in zip(ures_idx, maradek):
+                hh = (m[1] or "").lower()
+                if hh == nev.lower() or (nev.lower() in hh) or (hh in nev.lower() and hh):
+                    eredmeny[idx] = m; maradek.remove(m); break
+        ures = [i for i, e in enumerate(eredmeny) if e is None]
+        for i, m in zip(ures, maradek):
             eredmeny[i] = m
         return eredmeny
 
-    # R32 hivatalos bracket-sorrend (W49..W64) hazai csapatai:
+    # R32 hivatalos bracket-sorrend (W49..W64) hazai csapatai
     R32_SORREND = [
         "South Africa", "Germany", "Netherlands", "France",
         "Belgium", "United States", "Spain", "Portugal",
@@ -124,10 +117,21 @@ def agrajz_svg(conn):
         "Switzerland", "Australia", "Argentina", "Colombia",
     ]
     r32 = rendezd(r32, R32_SORREND)
+    # a felsobb korok a fd_id-sorrendben jonnek (a parositas-terkep kezeli a pozkiot)
+    def pad(lista, n):
+        lista = list(lista) + [None] * (n - len(lista))
+        return lista[:n]
+    r16 = pad(r16, 8); qf = pad(qf, 4); sf = pad(sf, 2); fin = pad(fin, 1)
 
-    def helyorzo(n): return queries.helyorzo_nev(n or "")
+    # parositasi terkep: az adott kor i. meccse az ELOZO kor mely ket indexebol all
+    PAROK = {
+        1: [(0,2),(1,3),(4,5),(6,7),(8,10),(9,11),(12,13),(14,15)],  # R16 <- R32
+        2: [(0,1),(2,3),(4,5),(6,7)],                                  # QF  <- R16
+        3: [(0,1),(2,3)],                                              # SF  <- QF
+        4: [(0,1)],                                                    # FIN <- SF
+    }
 
-    DOBOZ_W = 150; DOBOZ_H = 38; RES = 12; FLAG = 14; OSZLOP_GAP = 30
+    DOBOZ_W = 150; DOBOZ_H = 38; RES = 12; FLAG = 14; OSZLOP_GAP = 34
     bal = 8; teteje = 26
     korok = [("R32", r32, 16), ("R16", r16, 8), ("QF", qf, 4), ("SF", sf, 2), ("FIN", fin, 1)]
     n0 = 16
@@ -135,7 +139,7 @@ def agrajz_svg(conn):
     teljes_w = bal + len(korok) * (DOBOZ_W + OSZLOP_GAP) + 10
 
     elemek = []
-    elozo_kozepek = []
+    elozo_kozepek = []  # az elozo kor meccs-kozeppontjai (index szerint)
 
     for ki, (kod, lista, db) in enumerate(korok):
         x = bal + ki * (DOBOZ_W + OSZLOP_GAP)
@@ -147,8 +151,9 @@ def agrajz_svg(conn):
             if ki == 0:
                 y_top = teteje + i * (DOBOZ_H + RES)
             else:
-                p1 = elozo_kozepek[2*i] if 2*i < len(elozo_kozepek) else teteje
-                p2 = elozo_kozepek[2*i+1] if 2*i+1 < len(elozo_kozepek) else p1
+                a, b = PAROK[ki][i]
+                p1 = elozo_kozepek[a] if a < len(elozo_kozepek) else teteje
+                p2 = elozo_kozepek[b] if b < len(elozo_kozepek) else p1
                 y_top = (p1 + p2) // 2 - DOBOZ_H // 2
             kozep = y_top + DOBOZ_H // 2
             kozepek.append(kozep)
@@ -162,41 +167,70 @@ def agrajz_svg(conn):
             if m:
                 hr = m[6] or (m[1][:3] if not helyorzo(m[1]) else "?")
                 vr = m[7] or (m[2][:3] if not helyorzo(m[2]) else "?")
-                eh, ev, hz, vz = m[4], m[5], m[8], m[9]
+                hz, vz = m[8], m[9]
                 h_kesz = not helyorzo(m[1]); v_kesz = not helyorzo(m[2])
-                h_gyoz = eh is not None and ev is not None and eh > ev
-                v_gyoz = eh is not None and ev is not None and ev > eh
+                # kieséses VÉGEREDMÉNY (a továbbjutáshoz): ha volt hosszabbítás,
+                # a veg_* a hosszabbítás utáni gólarány; egyébként a rendes 90 perc.
+                duration = m[11] or "REGULAR"
+                if duration != "REGULAR" and m[12] is not None:
+                    eh, ev = m[12], m[13]          # hosszabbítás utáni állás
+                else:
+                    eh, ev = m[4], m[5]            # rendes 90 perc
+                ten_h, ten_v = m[14], m[15]        # tizenegyes (ha volt)
+                # továbbjutó: a végeredmény, döntetlennél a tizenegyes dönt
+                tovabb_h = tovabb_v = False
+                if eh is not None and ev is not None:
+                    if eh > ev:
+                        tovabb_h = True
+                    elif ev > eh:
+                        tovabb_v = True
+                    elif ten_h is not None:
+                        tovabb_h = ten_h > ten_v; tovabb_v = ten_v > ten_h
             else:
                 hr = vr = ""; eh = ev = hz = vz = None
-                h_kesz = v_kesz = False; h_gyoz = v_gyoz = False
+                h_kesz = v_kesz = False; tovabb_h = tovabb_v = False
+                duration = "REGULAR"; ten_h = ten_v = None
 
             yf = y_top + 11
             if hz and h_kesz:
                 elemek.append(f'<image href="{hz}" x="{x+5}" y="{yf-FLAG//2}" width="{FLAG}" height="{FLAG}" clip-path="circle({FLAG//2})"/>')
             else:
                 elemek.append(f'<circle class="bempty" cx="{x+5+FLAG//2}" cy="{yf}" r="{FLAG//2}"/>')
-            fw = ' font-weight="800"' if h_gyoz else ''
+            fw = ' font-weight="800"' if tovabb_h else ''
             elemek.append(f'<text x="{x+5+FLAG+4}" y="{yf+4}"{fw}>{hr}</text>')
             if eh is not None:
-                elemek.append(f'<text class="bscore" x="{x+DOBOZ_W-16}" y="{yf+4}">{eh}</text>')
+                # gólarány, tizenegyesnél a 11-es-állás zárójelben
+                pen_h = f' <tspan class="bpen">({ten_h})</tspan>' if ten_h is not None else ''
+                elemek.append(f'<text class="bscore" x="{x+DOBOZ_W-30}" y="{yf+4}">{eh}{pen_h}</text>')
             ya = y_top + DOBOZ_H - 11
             if vz and v_kesz:
                 elemek.append(f'<image href="{vz}" x="{x+5}" y="{ya-FLAG//2}" width="{FLAG}" height="{FLAG}" clip-path="circle({FLAG//2})"/>')
             else:
                 elemek.append(f'<circle class="bempty" cx="{x+5+FLAG//2}" cy="{ya}" r="{FLAG//2}"/>')
-            fw = ' font-weight="800"' if v_gyoz else ''
+            fw = ' font-weight="800"' if tovabb_v else ''
             elemek.append(f'<text x="{x+5+FLAG+4}" y="{ya+4}"{fw}>{vr}</text>')
             if ev is not None:
-                elemek.append(f'<text class="bscore" x="{x+DOBOZ_W-16}" y="{ya+4}">{ev}</text>')
+                pen_v = f' <tspan class="bpen">({ten_v})</tspan>' if ten_v is not None else ''
+                elemek.append(f'<text class="bscore" x="{x+DOBOZ_W-30}" y="{ya+4}">{ev}{pen_v}</text>')
+            # hosszabbítás/tizenegyes jelzés a doboz aljára
+            if m and duration and duration != "REGULAR":
+                jel = "11-es" if duration == "PENALTY_SHOOTOUT" else "h.u."
+                elemek.append(f'<text class="bmode" x="{x+DOBOZ_W-2}" y="{y_top+DOBOZ_H-2}" text-anchor="end">{jel}</text>')
 
+        # vonalak: az aktualis kor minden meccsebol a kovetkezo kor szulo-meccsehez
         if ki < len(korok) - 1:
             jobb = x + DOBOZ_W
-            next_x = bal + (ki+1) * (DOBOZ_W + OSZLOP_GAP)
-            for j in range(0, len(kozepek) - 1, 2):
-                y1 = kozepek[j]; y2 = kozepek[j+1]
-                kx = jobb + OSZLOP_GAP // 2
-                elemek.append(f'<path class="bline" d="M{jobb},{y1} H{kx} V{y2} H{jobb}"/>')
-                elemek.append(f'<path class="bline" d="M{kx},{(y1+y2)//2} H{next_x}"/>')
+            kx = jobb + OSZLOP_GAP // 2
+            kov_parok = PAROK[ki+1]
+            for next_i, (a, b) in enumerate(kov_parok):
+                if a >= len(kozepek) or b >= len(kozepek):
+                    continue
+                y1 = kozepek[a]; y2 = kozepek[b]
+                cel = (y1 + y2) // 2
+                # a ket szulo-meccsbol vizszintes, majd fuggoleges osszekoto a kozephez
+                elemek.append(f'<path class="bline" d="M{jobb},{y1} H{kx} V{cel}"/>')
+                elemek.append(f'<path class="bline" d="M{jobb},{y2} H{kx} V{cel}"/>')
+                elemek.append(f'<path class="bline" d="M{kx},{cel} H{jobb+OSZLOP_GAP}"/>')
 
         elozo_kozepek = kozepek
 
