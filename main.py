@@ -94,45 +94,24 @@ def agrajz_svg(conn):
 
     def helyorzo(n): return queries.helyorzo_nev(n or "")
 
-    def rendezd(lista, sorrend_nevek):
-        """A meccseket a megadott hazai-csapatnev sorrend szerint rendezi.
-        A meg el nem dolt (nem azonosithato) meccsek az ures helyekre kerulnek."""
-        eredmeny = [None] * len(sorrend_nevek)
-        maradek = list(lista)
-        for idx, nev in enumerate(sorrend_nevek):
-            for m in maradek:
-                hh = (m[1] or "").lower()
-                if hh == nev.lower() or (nev.lower() in hh) or (hh in nev.lower() and hh):
-                    eredmeny[idx] = m; maradek.remove(m); break
-        ures = [i for i, e in enumerate(eredmeny) if e is None]
-        for i, m in zip(ures, maradek):
-            eredmeny[i] = m
-        return eredmeny
-
-    # R32 hivatalos bracket-sorrend (W49..W64) hazai csapatai
-    R32_SORREND = [
-        "South Africa", "Germany", "Netherlands", "France",
-        "Belgium", "United States", "Spain", "Portugal",
-        "Brazil", "Ivory Coast", "Mexico", "England",
-        "Switzerland", "Australia", "Argentina", "Colombia",
-    ]
-    r32 = rendezd(r32, R32_SORREND)
-    # a felsobb korok a fd_id-sorrendben jonnek (a parositas-terkep kezeli a pozkiot)
+    # A forras fd_id-sorrendje PONTOSAN a hivatalos bracket-sorrend (Wikipedia-abra).
+    # Nincs szukseg atrendezesre - a meccseket ugy hasznaljuk, ahogy a sor() adja.
     def pad(lista, n):
         lista = list(lista) + [None] * (n - len(lista))
         return lista[:n]
-    r16 = pad(r16, 8); qf = pad(qf, 4); sf = pad(sf, 2); fin = pad(fin, 1)
+    r32 = pad(r32, 16); r16 = pad(r16, 8); qf = pad(qf, 4); sf = pad(sf, 2); fin = pad(fin, 1)
 
-    # parositasi terkep: az adott kor i. meccse az ELOZO kor mely ket indexebol all
+    # parositasi terkep: minden kor i. meccse az elozo kor 2*i es 2*i+1 meccsebol all
+    # (tiszta szomszedos parositas - ez a hivatalos Wikipedia-bracket elrendezes)
     PAROK = {
-        1: [(0,2),(1,3),(4,5),(6,7),(8,10),(9,11),(12,13),(14,15)],  # R16 <- R32
-        2: [(0,1),(2,3),(4,5),(6,7)],                                  # QF  <- R16
-        3: [(0,1),(2,3)],                                              # SF  <- QF
-        4: [(0,1)],                                                    # FIN <- SF
+        1: [(2*i, 2*i+1) for i in range(8)],  # R16 <- R32 (szomszedos parok)
+        2: [(2*i, 2*i+1) for i in range(4)],  # QF  <- R16
+        3: [(2*i, 2*i+1) for i in range(2)],  # SF  <- QF
+        4: [(0, 1)],                          # FIN <- SF
     }
 
-    DOBOZ_W = 150; DOBOZ_H = 38; RES = 12; FLAG = 14; OSZLOP_GAP = 34
-    bal = 8; teteje = 26
+    DOBOZ_W = 168; DOBOZ_H = 50; RES = 14; FLAG = 19; OSZLOP_GAP = 32
+    bal = 8; teteje = 28
     korok = [("R32", r32, 16), ("R16", r16, 8), ("QF", qf, 4), ("SF", sf, 2), ("FIN", fin, 1)]
     n0 = 16
     teljes_h = teteje + n0 * (DOBOZ_H + RES) + 10

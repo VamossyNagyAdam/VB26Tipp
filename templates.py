@@ -83,10 +83,10 @@ h1{font-size:1.6rem;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
 .bracket-svg{display:block;min-width:680px;margin:0 auto}
 .bracket-svg .bline{stroke:var(--line);stroke-width:1.5;fill:none}
 .bracket-svg .bflag{}
-.bracket-svg text{fill:var(--ink);font-size:11px;font-weight:600}
-.bracket-svg .bscore{fill:var(--accent);font-size:11px;font-weight:800}
-.bracket-svg .bpen{fill:var(--muted);font-size:9px;font-weight:700}
-.bracket-svg .bmode{fill:var(--accent2);font-size:8px;font-weight:700}
+.bracket-svg text{fill:var(--ink);font-size:13px;font-weight:600}
+.bracket-svg .bscore{fill:var(--accent);font-size:13px;font-weight:800}
+.bracket-svg .bpen{fill:var(--muted);font-size:10px;font-weight:700}
+.bracket-svg .bmode{fill:var(--accent2);font-size:9px;font-weight:700}
 .bracket-svg .bempty{stroke:var(--line);stroke-width:1.5;fill:var(--panel2)}
 /* élő tippek fejléc: a meccs-cellák azonos magasságúak, felülre igazítva,
    hogy az eredmény jelenléte ne tolja el a meccs-neveket */
