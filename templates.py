@@ -80,17 +80,19 @@ h1{font-size:1.6rem;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
   font-weight:800;border-radius:5px;padding:1px 6px;font-size:.65rem;margin-bottom:3px}
 /* ágrajz */
 .bracket-wrap{overflow-x:auto;margin-top:20px}
-.bracket-svg{display:block;min-width:680px;margin:0 auto}
+.bracket-svg{display:block;min-width:1200px;margin:0 auto}
 .bracket-svg .bline{stroke:var(--line);stroke-width:1.5;fill:none}
 .bracket-svg .bflag{}
-.bracket-svg text{fill:var(--ink);font-size:13px;font-weight:600}
-.bracket-svg .bscore{fill:var(--accent);font-size:13px;font-weight:800}
-.bracket-svg .bpen{fill:var(--muted);font-size:10px;font-weight:700}
-.bracket-svg .bmode{fill:var(--accent2);font-size:9px;font-weight:700}
+.bracket-svg text{fill:var(--ink);font-size:15px;font-weight:600}
+.bracket-svg .bscore{fill:var(--accent);font-size:15px;font-weight:800}
+.bracket-svg .bpen{fill:var(--muted);font-size:11px;font-weight:700}
+.bracket-svg .bmode{fill:var(--accent2);font-size:10px;font-weight:700}
 .bracket-svg .bempty{stroke:var(--line);stroke-width:1.5;fill:var(--panel2)}
 /* élő tippek fejléc: a meccs-cellák azonos magasságúak, felülre igazítva,
    hogy az eredmény jelenléte ne tolja el a meccs-neveket */
 .card table thead th{vertical-align:top;height:58px}
+/* az első három oszlop (#, Játékos, Pont) középen, a meccs-cellák felül */
+.card table thead th:nth-child(-n+3){vertical-align:middle}
 .xfade{background:var(--panel2);color:var(--accent2);border-radius:6px;
   padding:1px 7px;font-size:.72rem;font-weight:700;white-space:nowrap}
 .btn{background:var(--accent);color:#06231a;border:none;border-radius:10px;

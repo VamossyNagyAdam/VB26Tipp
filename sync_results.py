@@ -86,29 +86,50 @@ def sync(conn, token: str):
             continue
         mid, megvolt_h, megvolt_v, forras, mi_hazai, mi_vendeg = row
 
-        # kieseses nevfrissites: ha a forras mar konkret csapatot ad, frissitjuk
-        # a nevet ES a zaszlot/roviditest is. Akkor is frissitunk, ha a nev mar
-        # stimmel, de a zaszlo hianyzik (korabbi sync nev nelkul irta at).
-        fd_hazai = mi_nevunk(m["homeTeam"].get("name") or "")
-        fd_vendeg = mi_nevunk(m["awayTeam"].get("name") or "")
-        nev_valtozott = fd_hazai and fd_vendeg and (fd_hazai != mi_hazai or fd_vendeg != mi_vendeg)
-        # van-e mar zaszlo ennel a meccsnel?
-        zaszlo_hianyzik = conn.execute(
-            "SELECT hazai_zaszlo IS NULL OR vendeg_zaszlo IS NULL FROM matches WHERE id=?", (mid,)
-        ).fetchone()[0]
-        # csak akkor toltunk zaszlot, ha a forras konkret csapatot ad (nem helyorzo)
         import queries as _q
-        forras_konkret = fd_hazai and fd_vendeg and not _q.helyorzo_nev(fd_hazai) and not _q.helyorzo_nev(fd_vendeg)
-        if nev_valtozott or (forras_konkret and zaszlo_hianyzik):
-            h_tla = (m.get("homeTeam") or {}).get("tla")
-            v_tla = (m.get("awayTeam") or {}).get("tla")
-            h_crest = (m.get("homeTeam") or {}).get("crest")
-            v_crest = (m.get("awayTeam") or {}).get("crest")
-            conn.execute(
-                "UPDATE matches SET hazai=?, vendeg=?, hazai_rov=?, vendeg_rov=?, "
-                "hazai_zaszlo=?, vendeg_zaszlo=? WHERE id=?",
-                (fd_hazai, fd_vendeg, h_tla, v_tla, h_crest, v_crest, mid),
-            )
+        # kieseses nevfrissites OLDALANKENT: ha a forras az egyik oldalra mar konkret
+        # csapatot ad (a masik meg None/helyorzo), azt az oldalt frissitjuk - igy a
+        # feligkesz meccsek (egyik csapat mar tovabbjutott) is megjelennek az agrajzon.
+        forras_h = mi_nevunk(m["homeTeam"].get("name") or "")
+        forras_v = mi_nevunk(m["awayTeam"].get("name") or "")
+        # ha a forras nem ad nevet (None), megtartjuk a meglevo (helyorzo) nevet
+        uj_hazai = forras_h if (forras_h and not _q.helyorzo_nev(forras_h)) else mi_hazai
+        uj_vendeg = forras_v if (forras_v and not _q.helyorzo_nev(forras_v)) else mi_vendeg
+        # van-e mar zaszlo ennel a meccsnel?
+        zr = conn.execute(
+            "SELECT hazai_zaszlo, vendeg_zaszlo FROM matches WHERE id=?", (mid,)
+        ).fetchone()
+        h_zaszlo_hianyzik = zr[0] is None
+        v_zaszlo_hianyzik = zr[1] is None
+        h_konkret = forras_h and not _q.helyorzo_nev(forras_h)
+        v_konkret = forras_v and not _q.helyorzo_nev(forras_v)
+        # frissitunk, ha valamelyik oldal nev VAGY zaszlo valtozik
+        kell_frissites = (
+            (h_konkret and (uj_hazai != mi_hazai or h_zaszlo_hianyzik)) or
+            (v_konkret and (uj_vendeg != mi_vendeg or v_zaszlo_hianyzik))
+        )
+        if kell_frissites:
+            h_tla = (m.get("homeTeam") or {}).get("tla") if h_konkret else None
+            v_tla = (m.get("awayTeam") or {}).get("tla") if v_konkret else None
+            h_crest = (m.get("homeTeam") or {}).get("crest") if h_konkret else None
+            v_crest = (m.get("awayTeam") or {}).get("crest") if v_konkret else None
+            # csak a konkret oldal roviditeset/zaszlojat irjuk, a helyorzos oldalt nem
+            if h_konkret and v_konkret:
+                conn.execute(
+                    "UPDATE matches SET hazai=?, vendeg=?, hazai_rov=?, vendeg_rov=?, "
+                    "hazai_zaszlo=?, vendeg_zaszlo=? WHERE id=?",
+                    (uj_hazai, uj_vendeg, h_tla, v_tla, h_crest, v_crest, mid),
+                )
+            elif h_konkret:
+                conn.execute(
+                    "UPDATE matches SET hazai=?, hazai_rov=?, hazai_zaszlo=? WHERE id=?",
+                    (uj_hazai, h_tla, h_crest, mid),
+                )
+            elif v_konkret:
+                conn.execute(
+                    "UPDATE matches SET vendeg=?, vendeg_rov=?, vendeg_zaszlo=? WHERE id=?",
+                    (uj_vendeg, v_tla, v_crest, mid),
+                )
             conn.commit()
             nev_frissitve += 1
 

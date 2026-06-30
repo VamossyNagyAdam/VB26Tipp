@@ -110,8 +110,8 @@ def agrajz_svg(conn):
         4: [(0, 1)],                          # FIN <- SF
     }
 
-    DOBOZ_W = 168; DOBOZ_H = 50; RES = 14; FLAG = 19; OSZLOP_GAP = 32
-    bal = 8; teteje = 28
+    DOBOZ_W = 210; DOBOZ_H = 62; RES = 18; FLAG = 24; OSZLOP_GAP = 42
+    bal = 10; teteje = 34
     korok = [("R32", r32, 16), ("R16", r16, 8), ("QF", qf, 4), ("SF", sf, 2), ("FIN", fin, 1)]
     n0 = 16
     teljes_h = teteje + n0 * (DOBOZ_H + RES) + 10
