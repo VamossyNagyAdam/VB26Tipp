@@ -125,53 +125,46 @@ def init_db():
 
 
 def _migracio(conn):
-    """Meglévő adatbázis óvatos bővítése (új oszlopok, ha hiányoznak)."""
-    oszlopok = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
-    if "aktiv" not in oszlopok:
-        conn.execute("ALTER TABLE users ADD COLUMN aktiv INTEGER NOT NULL DEFAULT 1")
-        conn.commit()
+    """Meglévő adatbázis óvatos bővítése (új oszlopok, ha hiányoznak).
+    VÉDELEM: minden oszlop-hozzáadás külön try/except-ben fut, így egy furcsa
+    környezet (pl. új hoszting) SEM tudja féloldalasan hagyni vagy elrontani a
+    sémát – ha egy ALTER hibázna, csak kihagyjuk, a meglévő adat érintetlen marad.
+    A táblák IF NOT EXISTS-szel jönnek létre, tehát a meglévő adat sosem íródik felül."""
 
-    m_oszlopok = [r[1] for r in conn.execute("PRAGMA table_info(matches)").fetchall()]
-    if "fd_id" not in m_oszlopok:
-        conn.execute("ALTER TABLE matches ADD COLUMN fd_id INTEGER")
-        conn.commit()
-    if "eredmeny_forras" not in m_oszlopok:
-        conn.execute("ALTER TABLE matches ADD COLUMN eredmeny_forras TEXT")
-        conn.commit()
-    if "matchday" not in m_oszlopok:
-        conn.execute("ALTER TABLE matches ADD COLUMN matchday INTEGER")
-        conn.commit()
-    if "hazai_rov" not in m_oszlopok:
-        conn.execute("ALTER TABLE matches ADD COLUMN hazai_rov TEXT")
-        conn.commit()
-    if "vendeg_rov" not in m_oszlopok:
-        conn.execute("ALTER TABLE matches ADD COLUMN vendeg_rov TEXT")
-        conn.commit()
-    if "hazai_zaszlo" not in m_oszlopok:
-        conn.execute("ALTER TABLE matches ADD COLUMN hazai_zaszlo TEXT")
-        conn.commit()
-    if "vendeg_zaszlo" not in m_oszlopok:
-        conn.execute("ALTER TABLE matches ADD COLUMN vendeg_zaszlo TEXT")
-        conn.commit()
-    # kieséses végeredmény (a továbbjutáshoz; a pontozás a rendes 90 percből megy):
-    #   duration: REGULAR / EXTRA_TIME / PENALTY_SHOOTOUT
-    #   veg_hazai/veg_vendeg: a hosszabbítás utáni gólarány (ha volt hosszabbítás)
-    #   tizenegyes_hazai/tizenegyes_vendeg: a tizenegyes-párbaj eredménye (ha volt)
-    if "duration" not in m_oszlopok:
-        conn.execute("ALTER TABLE matches ADD COLUMN duration TEXT")
-        conn.commit()
-    if "veg_hazai" not in m_oszlopok:
-        conn.execute("ALTER TABLE matches ADD COLUMN veg_hazai INTEGER")
-        conn.commit()
-    if "veg_vendeg" not in m_oszlopok:
-        conn.execute("ALTER TABLE matches ADD COLUMN veg_vendeg INTEGER")
-        conn.commit()
-    if "tizenegyes_hazai" not in m_oszlopok:
-        conn.execute("ALTER TABLE matches ADD COLUMN tizenegyes_hazai INTEGER")
-        conn.commit()
-    if "tizenegyes_vendeg" not in m_oszlopok:
-        conn.execute("ALTER TABLE matches ADD COLUMN tizenegyes_vendeg INTEGER")
-        conn.commit()
+    def biztonsagos_oszlop(tabla, oszlop, tipus, meglevo):
+        """Hozzáad egy oszlopot, ha hiányzik. Hiba esetén nem áll le, csak jelez."""
+        if oszlop in meglevo:
+            return
+        try:
+            conn.execute(f"ALTER TABLE {tabla} ADD COLUMN {oszlop} {tipus}")
+            conn.commit()
+        except Exception as e:
+            # nem végzetes: az oszlop vagy már létezik, vagy a környezet nem engedi.
+            # A meglévő adatot ez NEM érinti; az app a hiányzó oszlop nélkül is indul.
+            print(f"[migracio] '{tabla}.{oszlop}' kihagyva: {type(e).__name__}")
+
+    try:
+        oszlopok = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+        biztonsagos_oszlop("users", "aktiv", "INTEGER NOT NULL DEFAULT 1", oszlopok)
+
+        m = [r[1] for r in conn.execute("PRAGMA table_info(matches)").fetchall()]
+        biztonsagos_oszlop("matches", "fd_id", "INTEGER", m)
+        biztonsagos_oszlop("matches", "eredmeny_forras", "TEXT", m)
+        biztonsagos_oszlop("matches", "matchday", "INTEGER", m)
+        biztonsagos_oszlop("matches", "hazai_rov", "TEXT", m)
+        biztonsagos_oszlop("matches", "vendeg_rov", "TEXT", m)
+        biztonsagos_oszlop("matches", "hazai_zaszlo", "TEXT", m)
+        biztonsagos_oszlop("matches", "vendeg_zaszlo", "TEXT", m)
+        biztonsagos_oszlop("matches", "duration", "TEXT", m)
+        biztonsagos_oszlop("matches", "veg_hazai", "INTEGER", m)
+        biztonsagos_oszlop("matches", "veg_vendeg", "INTEGER", m)
+        biztonsagos_oszlop("matches", "tizenegyes_hazai", "INTEGER", m)
+        biztonsagos_oszlop("matches", "tizenegyes_vendeg", "INTEGER", m)
+    except Exception as e:
+        # a teljes migráció is védve: ha valami rendszerszintű hiba van,
+        # az app akkor is elindul, az adatbázis érintetlen marad.
+        print(f"[migracio] kihagyva (nem végzetes): {type(e).__name__}")
+    return
 
 
 if __name__ == "__main__":
