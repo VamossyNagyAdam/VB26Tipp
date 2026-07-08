@@ -140,6 +140,9 @@ def egy_tipp(conn, user_id: int, match_id: int):
         (user_id, match_id),
     ).fetchone()
     return (r[0], r[1]) if r else None
+
+
+def sajat_tippek(conn, user_id: int):
     """Egy user összes tippje match_id -> (th, tv) szótárban."""
     rows = conn.execute(
         "SELECT match_id, tipp_hazai, tipp_vendeg FROM predictions WHERE user_id=?",
