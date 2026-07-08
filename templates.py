@@ -62,32 +62,16 @@ h1{font-size:1.6rem;font-weight:800;letter-spacing:-.5px;margin-bottom:6px}
 .tipbox>span{font-size:1.2rem;font-weight:700;color:var(--muted)}
 .tipbox .savecell{width:64px;display:flex;justify-content:center}
 /* kisebb mezők a tippeléshez, hogy mobilon is elférjenek egymás mellett */
-/* forduló-elválasztó (a nap-elválasztótól elütő, hangsúlyosabb) */
-.roundsep{display:flex;align-items:center;gap:12px;margin:30px 2px 8px}
-.roundsep .rlabel{background:var(--accent);color:#06231a;font-weight:800;
-  border-radius:8px;padding:5px 14px;font-size:.9rem;white-space:nowrap}
-.roundsep .rline{flex:1;height:2px;background:var(--accent);opacity:.3}
 /* "mindet ment" lebegő sáv */
 .saveall{position:sticky;bottom:0;background:var(--panel);border-top:1px solid var(--accent);
   padding:14px;margin:20px -12px -60px;text-align:center;z-index:20}
 .saveall .btn{width:100%;max-width:340px}
 /* bónusz leadva jelzés */
 .leadva{font-size:.8rem;color:var(--accent);font-weight:700}
-.medal{margin-left:2px;font-size:1rem}
 .helyjel{display:inline-flex;align-items:center;justify-content:center;
   min-width:28px;font-size:1.05rem;font-weight:700;line-height:1}
 .korbadge{display:inline-block;background:var(--accent);color:#06231a;
   font-weight:800;border-radius:5px;padding:1px 6px;font-size:.65rem;margin-bottom:3px}
-/* ágrajz */
-.bracket-wrap{overflow-x:auto;margin-top:20px}
-.bracket-svg{display:block;min-width:1200px;margin:0 auto}
-.bracket-svg .bline{stroke:var(--line);stroke-width:1.5;fill:none}
-.bracket-svg .bflag{}
-.bracket-svg text{fill:var(--ink);font-size:15px;font-weight:600}
-.bracket-svg .bscore{fill:var(--accent);font-size:15px;font-weight:800}
-.bracket-svg .bpen{fill:var(--muted);font-size:11px;font-weight:700}
-.bracket-svg .bmode{fill:var(--accent2);font-size:10px;font-weight:700}
-.bracket-svg .bempty{stroke:var(--line);stroke-width:1.5;fill:var(--panel2)}
 /* élő tippek fejléc: a meccs-cellák azonos magasságúak, felülre igazítva,
    hogy az eredmény jelenléte ne tolja el a meccs-neveket */
 .card table thead th{vertical-align:top;height:58px}

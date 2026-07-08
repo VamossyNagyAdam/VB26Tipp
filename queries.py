@@ -587,14 +587,4 @@ def aktualis_fazis(conn, van_ko: bool) -> str:
     return "1"
 
 
-def osszes_kieseses_meccs(conn):
-    """Az ÖSSZES kieséses meccs (kész és helyőrzős is), körönként rendezve.
-    Az ágrajzhoz kell, ahol a még el nem dőlt ágak is megjelennek (üresen)."""
-    sorrend = {"R32": 0, "R16": 1, "QF": 2, "SF": 3, "3rd": 4, "FIN": 5}
-    rows = conn.execute(
-        "SELECT id, csoport, hazai, vendeg, kickoff_utc, eredmeny_hazai, eredmeny_vendeg, "
-        "hazai_rov, vendeg_rov, hazai_zaszlo, vendeg_zaszlo "
-        "FROM matches WHERE csoport IN ('R32','R16','QF','SF','3rd','FIN') "
-        "ORDER BY kickoff_utc"
-    ).fetchall()
-    return sorted(rows, key=lambda r: (sorrend.get(r[1], 9), r[4]))
+

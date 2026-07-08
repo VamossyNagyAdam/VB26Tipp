@@ -44,31 +44,6 @@ def fetch_matches(token: str):
         return json.loads(resp.read().decode("utf-8"))
 
 
-def van_fuggoben(conn):
-    """Érdemes-e synct futtatni? Igaz, ha:
-    (a) van befejezett (kickoff +1.5h elmult), de meg eredmeny nelkuli meccs, VAGY
-    (b) van olyan kieseses meccs, ami meg helyorzos (varjuk a parositast a forrasbol).
-    Igy a cron nem hiv API-t feleslegesen, de a parositasok frissulnek."""
-    from datetime import datetime, timezone, timedelta
-    hatar = (datetime.now(timezone.utc) - timedelta(hours=1, minutes=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    # (a) eredmenyre varo lement meccs
-    row = conn.execute(
-        "SELECT COUNT(*) FROM matches WHERE kickoff_utc <= ? AND eredmeny_hazai IS NULL",
-        (hatar,),
-    ).fetchone()
-    if row[0] > 0:
-        return True
-    # (b) helyorzos kieseses meccs (meg nincs konkret parositas)
-    import queries
-    ko = conn.execute(
-        "SELECT hazai, vendeg FROM matches WHERE csoport IN ('R32','R16','QF','SF','3rd','FIN')"
-    ).fetchall()
-    for h, v in ko:
-        if queries.helyorzo_nev(h) or queries.helyorzo_nev(v):
-            return True
-    return False
-
-
 def sync(conn, token: str):
     data = fetch_matches(token)
     matches = data.get("matches", [])
@@ -89,7 +64,7 @@ def sync(conn, token: str):
         import queries as _q
         # kieseses nevfrissites OLDALANKENT: ha a forras az egyik oldalra mar konkret
         # csapatot ad (a masik meg None/helyorzo), azt az oldalt frissitjuk - igy a
-        # feligkesz meccsek (egyik csapat mar tovabbjutott) is megjelennek az agrajzon.
+        # mar ismert tovabbjuto azonnal megjelenik a tippelo nezetekben.
         forras_h = mi_nevunk(m["homeTeam"].get("name") or "")
         forras_v = mi_nevunk(m["awayTeam"].get("name") or "")
         # ha a forras nem ad nevet (None), megtartjuk a meglevo (helyorzo) nevet
@@ -159,20 +134,6 @@ def sync(conn, token: str):
         if forras == "kezi":
             kihagyva += 1
             continue
-
-        # kieseses vegeredmeny (a tovabbjutashoz; a pontozas a rendes 90 percbol megy):
-        #   veg_*: a hosszabbitas utani golarany (ha volt hosszabbitas)
-        #   tizenegyes_*: a tizenegyes-parbaj eredmenye (ha volt)
-        veg = score.get("fullTime") or {}      # a VEGEREDMENY (hosszabbitas utan)
-        pen = score.get("penalties") or {}
-        veg_h, veg_v = veg.get("home"), veg.get("away")
-        ten_h, ten_v = pen.get("home"), pen.get("away")
-        conn.execute(
-            "UPDATE matches SET duration=?, veg_hazai=?, veg_vendeg=?, "
-            "tizenegyes_hazai=?, tizenegyes_vendeg=? WHERE id=?",
-            (duration, veg_h, veg_v, ten_h, ten_v, mid),
-        )
-        conn.commit()
 
         # idempotencia: ha mar pont ez van a RENDES idore, nincs tobb teendo
         if megvolt_h == eh and megvolt_v == ev:

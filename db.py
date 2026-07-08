@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS players (
 
 CREATE TABLE IF NOT EXISTS matches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    csoport TEXT,                       -- pl. 'A', 'B' ... vagy 'R32', 'R16', 'QF', 'SF', '3rd', 'F'
+    csoport TEXT,                       -- pl. 'A', 'B' ... vagy 'R32', 'R16', 'QF', 'SF', '3rd', 'FIN'
     hazai TEXT NOT NULL,
     vendeg TEXT NOT NULL,
     kickoff_utc TEXT NOT NULL,          -- ISO 8601 UTC, pl. '2026-06-11T19:00:00Z'
@@ -155,11 +155,6 @@ def _migracio(conn):
         biztonsagos_oszlop("matches", "vendeg_rov", "TEXT", m)
         biztonsagos_oszlop("matches", "hazai_zaszlo", "TEXT", m)
         biztonsagos_oszlop("matches", "vendeg_zaszlo", "TEXT", m)
-        biztonsagos_oszlop("matches", "duration", "TEXT", m)
-        biztonsagos_oszlop("matches", "veg_hazai", "INTEGER", m)
-        biztonsagos_oszlop("matches", "veg_vendeg", "INTEGER", m)
-        biztonsagos_oszlop("matches", "tizenegyes_hazai", "INTEGER", m)
-        biztonsagos_oszlop("matches", "tizenegyes_vendeg", "INTEGER", m)
     except Exception as e:
         # a teljes migráció is védve: ha valami rendszerszintű hiba van,
         # az app akkor is elindul, az adatbázis érintetlen marad.
