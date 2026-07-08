@@ -868,6 +868,20 @@ def admin_oldal(request: Request, kulcs: str = "", uzenet: str = "", hiba: str =
         "SELECT vilagbajnok, golkiralyok FROM tournament_results WHERE id=1"
     ).fetchone()
     tr_vb = tr[0] if tr else ""
+
+    # --- Utólagos tipp-rögzítés: legördülők ---
+    # user-opciók (csak aktív játékosok)
+    utolag_user_opts = ""
+    for u in users:
+        uid_, unev, uaktiv = u
+        if uaktiv:
+            utolag_user_opts += f'<option value="{uid_}">{unev}</option>'
+    # meccs-opciók (mind, nappal és eredménnyel jelölve)
+    utolag_meccs_opts = ""
+    for m in queries.meccsek_listaja(conn):
+        mid_, grp_, hazai_, vendeg_, ko_, eh_, ev_, md_, hr_, vr_, hz_, vz_ = m
+        eredm = f" [{eh_}:{ev_}]" if eh_ is not None else " [nincs eredmény]"
+        utolag_meccs_opts += f'<option value="{mid_}">#{mid_} · {hazai_}–{vendeg_}{eredm}</option>'
     tr_gk = tr[1] if tr else ""
     tr_gk_lista = [g.strip() for g in tr_gk.split(",")] if tr_gk else []
 
@@ -930,10 +944,64 @@ def admin_oldal(request: Request, kulcs: str = "", uzenet: str = "", hiba: str =
     }}
     </script>
 
+    <h2 style="font-size:1.15rem;margin:28px 2px 4px">Utólagos tipp rögzítése</h2>
+    <p class="sub">Bárkinek, bármely meccsre. Ha a meccsnek már van eredménye, a pont azonnal kiszámolódik.</p>
+    <div class="card">
+    <form method="post" action="/admin/utolagos-tipp" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+    <input type="hidden" name="kulcs" value="{kulcs}">
+    <div style="flex:1;min-width:150px"><label>Játékos</label>
+    <select name="user_id" class="sel" required>{utolag_user_opts}</select></div>
+    <div style="flex:2;min-width:220px"><label>Meccs</label>
+    <select name="match_id" class="sel" required>{utolag_meccs_opts}</select></div>
+    <div style="min-width:60px"><label>Hazai</label>
+    <input class="score-in" type="number" min="0" name="th" required></div>
+    <span style="align-self:center;padding-bottom:8px">:</span>
+    <div style="min-width:60px"><label>Vendég</label>
+    <input class="score-in" type="number" min="0" name="tv" required></div>
+    <button class="btn" type="submit">Rögzít</button></form></div>
+
     <h2 style="font-size:1.15rem;margin:28px 2px 4px">Meccsek — eredménybevitel</h2>
     <p class="sub">A # a meccs azonosítója. Rendes játékidő eredménye.</p>
     {meccs_sorok}"""
     return T.page("Admin", body)
+
+
+@app.post("/admin/utolagos-tipp")
+def admin_utolagos_tipp(kulcs: str = Form(...), user_id: int = Form(...),
+                        match_id: int = Form(...), th: int = Form(...),
+                        tv: int = Form(...), megerosit: str = Form("")):
+    if kulcs != ADMIN_JELSZO:
+        return RedirectResponse("/admin", status_code=303)
+    conn = db.kapcsolat()
+
+    # ha már van tipp erre a meccsre és nincs megerősítés -> mutassuk a meglévőt
+    meglevo = queries.egy_tipp(conn, user_id, match_id)
+    if meglevo is not None and megerosit != "1":
+        m = queries.meccs(conn, match_id)
+        unev = conn.execute("SELECT nev FROM users WHERE id=?", (user_id,)).fetchone()[0]
+        meccs_nev = f"{m[2]} – {m[3]}" if m else f"#{match_id}"
+        body = f"""<h1>Meglévő tipp</h1>
+        <div class="card">
+        <p><b>{unev}</b> már tippelt erre a meccsre (<b>{meccs_nev}</b>):</p>
+        <p style="font-size:1.4rem;font-weight:800;margin:12px 0">
+        Jelenlegi tipp: {meglevo[0]} : {meglevo[1]}</p>
+        <p class="sub">Az új tipp, amit rögzítenél: <b>{th} : {tv}</b></p>
+        <form method="post" action="/admin/utolagos-tipp" style="margin-top:16px;display:flex;gap:12px">
+        <input type="hidden" name="kulcs" value="{kulcs}">
+        <input type="hidden" name="user_id" value="{user_id}">
+        <input type="hidden" name="match_id" value="{match_id}">
+        <input type="hidden" name="th" value="{th}">
+        <input type="hidden" name="tv" value="{tv}">
+        <input type="hidden" name="megerosit" value="1">
+        <button class="btn" type="submit">Igen, írja felül</button></form>
+        <p style="margin-top:12px"><a href="/admin?kulcs={kulcs}">Mégse, vissza</a></p></div>"""
+        return T.page("Admin", body)
+
+    ok, uz = queries.admin_tipp_bead(conn, user_id, match_id, th, tv)
+    kulcs_p = f"kulcs={kulcs}"
+    if ok:
+        return RedirectResponse(f"/admin?{kulcs_p}&uzenet={uz.replace(' ', '+')}", status_code=303)
+    return RedirectResponse(f"/admin?{kulcs_p}&hiba={uz.replace(' ', '+')}", status_code=303)
 
 
 @app.post("/admin/user")

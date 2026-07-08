@@ -97,7 +97,49 @@ def tipp_bead(conn, user_id: int, match_id: int, th: int, tv: int):
     return True, "Tipp elmentve."
 
 
-def sajat_tippek(conn, user_id: int):
+def admin_tipp_bead(conn, user_id: int, match_id: int, th: int, tv: int):
+    """ADMIN utólagos tipp-rögzítés: a kickoff-zárás NEM érvényes (bármely meccsre).
+    Ha a meccsnek MÁR van eredménye, azonnal kiszámolja a pontot is – így úgy
+    viselkedik, mintha rendes tipp lett volna. Visszaad: (siker, uzenet)."""
+    m = meccs(conn, match_id)
+    if not m:
+        return False, "Nincs ilyen meccs."
+    if th < 0 or tv < 0:
+        return False, "A gólszám nem lehet negatív."
+
+    # tipp mentése (upsert – felülírja a meglévőt)
+    conn.execute(
+        "INSERT INTO predictions (user_id, match_id, tipp_hazai, tipp_vendeg, beadva_utc) "
+        "VALUES (?, ?, ?, ?, ?) "
+        "ON CONFLICT(user_id, match_id) DO UPDATE SET "
+        "tipp_hazai=excluded.tipp_hazai, tipp_vendeg=excluded.tipp_vendeg, "
+        "beadva_utc=excluded.beadva_utc",
+        (user_id, match_id, th, tv, now_utc_iso()),
+    )
+    # ha a meccsnek már van eredménye, azonnal pontozzuk ezt a tippet
+    eh, ev = m[5], m[6]
+    if eh is not None and ev is not None:
+        pont = scoring.pontszam(th, tv, eh, ev)
+        conn.execute(
+            "INSERT INTO points (user_id, match_id, pont, szamitva_utc) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(user_id, match_id) DO UPDATE SET "
+            "pont=excluded.pont, szamitva_utc=excluded.szamitva_utc",
+            (user_id, match_id, pont, now_utc_iso()),
+        )
+        conn.commit()
+        return True, f"Tipp rögzítve és pontozva ({pont} pont)."
+    conn.commit()
+    return True, "Tipp rögzítve (a meccsnek még nincs eredménye, a pont később számítódik)."
+
+
+def egy_tipp(conn, user_id: int, match_id: int):
+    """Egy adott játékos tippje egy adott meccsre, vagy None. Visszaad: (th, tv) vagy None."""
+    r = conn.execute(
+        "SELECT tipp_hazai, tipp_vendeg FROM predictions WHERE user_id=? AND match_id=?",
+        (user_id, match_id),
+    ).fetchone()
+    return (r[0], r[1]) if r else None
     """Egy user összes tippje match_id -> (th, tv) szótárban."""
     rows = conn.execute(
         "SELECT match_id, tipp_hazai, tipp_vendeg FROM predictions WHERE user_id=?",
